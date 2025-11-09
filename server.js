@@ -1,4 +1,4 @@
-// server.js (ÃÖÁ¾º» All-in-One, dedup & fixes)
+ï»¿// server.js (ìµœì¢…ë³¸ All-in-One, dedup & fixes)
 import express from "express";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
@@ -22,7 +22,7 @@ const PORT = process.env.PORT || 10000;
 const NODE_ENV = process.env.NODE_ENV || "development";
 const isProd = NODE_ENV === "production";
 
-// ÄíÅ° ¿É¼Ç
+// ì¿ í‚¤ ì˜µì…˜
 const COOKIE_NAME = "sid";
 const COOKIE_OPTS = {
   httpOnly: true,
@@ -32,7 +32,7 @@ const COOKIE_OPTS = {
   signed: true,
 };
 
-// CSRF (´õºí¼­ºê¹Ô¿ë ÄíÅ° ÀÌ¸§)
+// CSRF (ë”ë¸”ì„œë¸Œë°‹ìš© ì¿ í‚¤ ì´ë¦„)
 const CSRF_COOKIE_NAME = "xsrf-token";
 
 /* -------------------- App -------------------- */
@@ -141,7 +141,7 @@ CREATE TABLE IF NOT EXISTS schedules (
 CREATE INDEX IF NOT EXISTS idx_sched_user_start ON schedules(user_id, start_at);
 `);
 
-// ±¸¹öÀü È£È¯¿ë: avatar_url, bio º¸Àå
+// êµ¬ë²„ì „ í˜¸í™˜ìš©: avatar_url, bio ë³´ì¥
 async function ensureUserColumns() {
   const cols = await db.all(`PRAGMA table_info(users)`);
   const names = new Set(cols.map(c => c.name));
@@ -164,16 +164,16 @@ const storage = multer.diskStorage({
 });
 const imageFilter = (_req, file, cb) => {
   const ok = /^image\/(png|jpe?g|gif|webp|avif)$/.test(file.mimetype);
-  cb(ok ? null : new Error("ÀÌ¹ÌÁö Çü½Ä¸¸ Çã¿ë"));
+  cb(ok ? null : new Error("ì´ë¯¸ì§€ í˜•ì‹ë§Œ í—ˆìš©"));
 };
 const uploadAvatar = multer({
   storage,
-  limits: { fileSize: 4 * 1024 * 1024 },
+  limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: imageFilter,
 });
 const uploadDiaryMany = multer({
   storage,
-  limits: { fileSize: 4 * 1024 * 1024 },
+  limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: imageFilter,
 });
 
@@ -230,7 +230,7 @@ async function destroySession(req, res) {
 }
 async function authRequired(req, res, next) {
   const sess = await getSession(req);
-  if (!sess) return res.status(401).json({ error: "·Î±×ÀÎÀÌ ÇÊ¿äÇÕ´Ï´Ù." });
+  if (!sess) return res.status(401).json({ error: "ë¡œê·¸ì¸ì´ í•„ìš”í•©ë‹ˆë‹¤." });
   await db.run(`UPDATE sessions SET last_seen = ? WHERE id = ?`, [nowISO(), sess.sid]);
   req.user = { id: sess.userId, username: sess.username, nickname: sess.nickname };
   next();
@@ -244,14 +244,14 @@ app.post("/api/auth/signup", csrfProtection, async (req, res) => {
     password = String(password || "");
 
     if (!/^[a-zA-Z0-9_.]{4,32}$/.test(username)) {
-      return res.status(400).json({ error: "¾ÆÀÌµğ´Â ¿µ¹®/¼ıÀÚ/._ 4~32ÀÚ" });
+      return res.status(400).json({ error: "ì•„ì´ë””ëŠ” ì˜ë¬¸/ìˆ«ì/._ 4~32ì" });
     }
     if (password.length < 6 || password.length > 128) {
-      return res.status(400).json({ error: "ºñ¹Ğ¹øÈ£´Â 6~128ÀÚ" });
+      return res.status(400).json({ error: "ë¹„ë°€ë²ˆí˜¸ëŠ” 6~128ì" });
     }
 
     const exists = await db.get(`SELECT 1 FROM users WHERE username = ?`, [username]);
-    if (exists) return res.status(409).json({ error: "ÀÌ¹Ì »ç¿ë ÁßÀÎ ¾ÆÀÌµğ" });
+    if (exists) return res.status(409).json({ error: "ì´ë¯¸ ì‚¬ìš© ì¤‘ì¸ ì•„ì´ë””" });
 
     const password_hash = await bcrypt.hash(password, 12);
     const id = "u_" + nanoid(16);
@@ -264,7 +264,7 @@ app.post("/api/auth/signup", csrfProtection, async (req, res) => {
     res.json({ ok: true, userId: id });
   } catch (e) {
     console.error(e);
-    res.status(500).json({ error: "¼­¹ö ¿À·ù" });
+    res.status(500).json({ error: "ì„œë²„ ì˜¤ë¥˜" });
   }
 });
 
@@ -274,14 +274,14 @@ app.post("/api/auth/login", csrfProtection, async (req, res) => {
     username = String(username || "").trim();
     password = String(password || "");
     const user = await db.get(`SELECT * FROM users WHERE username = ?`, [username]);
-    if (!user) return res.status(401).json({ error: "¾ÆÀÌµğ ¶Ç´Â ºñ¹Ğ¹øÈ£°¡ ¿Ã¹Ù¸£Áö ¾Ê½À´Ï´Ù." });
+    if (!user) return res.status(401).json({ error: "ì•„ì´ë”” ë˜ëŠ” ë¹„ë°€ë²ˆí˜¸ê°€ ì˜¬ë°”ë¥´ì§€ ì•ŠìŠµë‹ˆë‹¤." });
     const ok = await bcrypt.compare(password, user.password_hash);
-    if (!ok) return res.status(401).json({ error: "¾ÆÀÌµğ ¶Ç´Â ºñ¹Ğ¹øÈ£°¡ ¿Ã¹Ù¸£Áö ¾Ê½À´Ï´Ù." });
+    if (!ok) return res.status(401).json({ error: "ì•„ì´ë”” ë˜ëŠ” ë¹„ë°€ë²ˆí˜¸ê°€ ì˜¬ë°”ë¥´ì§€ ì•ŠìŠµë‹ˆë‹¤." });
     await createSession(user.id, req, res);
     res.json({ ok: true, userId: user.id, nickname: user.nickname || null });
   } catch (e) {
     console.error(e);
-    res.status(500).json({ error: "¼­¹ö ¿À·ù" });
+    res.status(500).json({ error: "ì„œë²„ ì˜¤ë¥˜" });
   }
 });
 
@@ -302,7 +302,7 @@ app.get("/api/auth/session", async (req, res) => {
 });
 
 /* -------------------- Users / Profile -------------------- */
-// ´Ğ³×ÀÓ Áßº¹ Ã¼Å©(¼±ÅÃ)
+// ë‹‰ë„¤ì„ ì¤‘ë³µ ì²´í¬(ì„ íƒ)
 app.post("/api/users/check-nickname", csrfProtection, authRequired, async (req, res) => {
   try {
     const nickname = String(req.body?.nickname || "").trim();
@@ -314,37 +314,37 @@ app.post("/api/users/check-nickname", csrfProtection, authRequired, async (req, 
     res.json({ exists: !!row });
   } catch (e) {
     console.error(e);
-    res.status(500).json({ error: "¼­¹ö ¿À·ù" });
+    res.status(500).json({ error: "ì„œë²„ ì˜¤ë¥˜" });
   }
 });
 
-// ´Ğ³×ÀÓ/¼Ò°³ ¾÷µ¥ÀÌÆ® (´Ğ³×ÀÓ UNIQUE)
+// ë‹‰ë„¤ì„/ì†Œê°œ ì—…ë°ì´íŠ¸ (ë‹‰ë„¤ì„ UNIQUE)
 app.patch("/api/users/me", csrfProtection, authRequired, async (req, res) => {
   try {
     let { nickname, bio } = req.body;
     nickname = String(nickname || "").replace(/\s+/g, " ").trim();
     if (nickname.length < 1 || nickname.length > 24) {
-      return res.status(400).json({ error: "´Ğ³×ÀÓÀº 1~24ÀÚ" });
+      return res.status(400).json({ error: "ë‹‰ë„¤ì„ì€ 1~24ì" });
     }
     const taken = await db.get(
       `SELECT 1 FROM users WHERE nickname = ? AND id <> ?`,
       [nickname, req.user.id]
     );
-    if (taken) return res.status(409).json({ error: "ÀÌ¹Ì »ç¿ë ÁßÀÎ ´Ğ³×ÀÓÀÔ´Ï´Ù." });
+    if (taken) return res.status(409).json({ error: "ì´ë¯¸ ì‚¬ìš© ì¤‘ì¸ ë‹‰ë„¤ì„ì…ë‹ˆë‹¤." });
 
     const bioSafe = String(bio || "").slice(0, 160);
     await db.run(`UPDATE users SET nickname = ?, bio = ? WHERE id = ?`, [nickname, bioSafe, req.user.id]);
     res.json({ ok: true, nickname, bio: bioSafe });
   } catch (e) {
     if (String(e?.message || "").includes("UNIQUE") || String(e?.code || "") === "SQLITE_CONSTRAINT") {
-      return res.status(409).json({ error: "ÀÌ¹Ì »ç¿ë ÁßÀÎ ´Ğ³×ÀÓÀÔ´Ï´Ù." });
+      return res.status(409).json({ error: "ì´ë¯¸ ì‚¬ìš© ì¤‘ì¸ ë‹‰ë„¤ì„ì…ë‹ˆë‹¤." });
     }
     console.error(e);
-    res.status(500).json({ error: "¼­¹ö ¿À·ù" });
+    res.status(500).json({ error: "ì„œë²„ ì˜¤ë¥˜" });
   }
 });
 
-// (È£È¯¿ë) bio¸¸ º°µµ ¾÷µ¥ÀÌÆ®
+// (í˜¸í™˜ìš©) bioë§Œ ë³„ë„ ì—…ë°ì´íŠ¸
 app.patch("/api/users/me/bio", csrfProtection, authRequired, async (req, res) => {
   try {
     const bioSafe = String(req.body?.bio || "").slice(0, 160);
@@ -352,11 +352,11 @@ app.patch("/api/users/me/bio", csrfProtection, authRequired, async (req, res) =>
     res.json({ ok: true, bio: bioSafe });
   } catch (e) {
     console.error(e);
-    res.status(500).json({ error: "¼­¹ö ¿À·ù" });
+    res.status(500).json({ error: "ì„œë²„ ì˜¤ë¥˜" });
   }
 });
 
-// ¾Æ¹ÙÅ¸ ¾÷·Îµå(´ÜÀÏ) ? ¡Ú Áßº¹ ¾øÀÌ ÀÌ°Å ÇÑ °³¸¸!
+// ì•„ë°”íƒ€ ì—…ë¡œë“œ(ë‹¨ì¼) ? â˜… ì¤‘ë³µ ì—†ì´ ì´ê±° í•œ ê°œë§Œ!
 app.post(
   "/api/users/me/avatar",
   csrfProtection,
@@ -364,18 +364,18 @@ app.post(
   uploadAvatar.single("avatar"),
   async (req, res) => {
     try {
-      if (!req.file) return res.status(400).json({ error: "ÆÄÀÏ ¾øÀ½" });
+      if (!req.file) return res.status(400).json({ error: "íŒŒì¼ ì—†ìŒ" });
       const webPath = `/uploads/${req.file.filename}`;
       await db.run(`UPDATE users SET avatar_url = ? WHERE id = ?`, [webPath, req.user.id]);
       res.json({ ok: true, avatar_url: webPath });
     } catch (e) {
       console.error(e);
-      res.status(500).json({ error: "¾÷·Îµå ½ÇÆĞ" });
+      res.status(500).json({ error: "ì—…ë¡œë“œ ì‹¤íŒ¨" });
     }
   }
 );
 
-// »ç¿ëÀÚ °Ë»ö
+// ì‚¬ìš©ì ê²€ìƒ‰
 app.get("/api/users/search", authRequired, async (req, res) => {
   const q = String(req.query.q || "").trim();
   if (!q) return res.json({ users: [] });
@@ -390,7 +390,7 @@ app.get("/api/users/search", authRequired, async (req, res) => {
   res.json({ users: rows });
 });
 
-// Æ¯Á¤ »ç¿ëÀÚ ÇÁ·ÎÇÊ + ³ª¿ÍÀÇ Ä£±¸ »óÅÂ
+// íŠ¹ì • ì‚¬ìš©ì í”„ë¡œí•„ + ë‚˜ì™€ì˜ ì¹œêµ¬ ìƒíƒœ
 app.get("/api/users/:id", authRequired, async (req, res) => {
   const userId = String(req.params.id);
   const row = await db.get(
@@ -398,7 +398,7 @@ app.get("/api/users/:id", authRequired, async (req, res) => {
      FROM users WHERE id = ?`,
     [userId]
   );
-  if (!row) return res.status(404).json({ error: "Á¸ÀçÇÏÁö ¾Ê´Â »ç¿ëÀÚ" });
+  if (!row) return res.status(404).json({ error: "ì¡´ì¬í•˜ì§€ ì•ŠëŠ” ì‚¬ìš©ì" });
 
   const me = req.user.id;
   const fr = await db.get(
@@ -415,10 +415,10 @@ app.get("/api/users/:id", authRequired, async (req, res) => {
 app.post("/api/friends/request", csrfProtection, authRequired, async (req, res) => {
   const me = req.user.id;
   const { toUserId } = req.body || {};
-  if (!toUserId || toUserId === me) return res.status(400).json({ error: "Àß¸øµÈ ´ë»ó" });
+  if (!toUserId || toUserId === me) return res.status(400).json({ error: "ì˜ëª»ëœ ëŒ€ìƒ" });
 
   const existsUser = await db.get(`SELECT 1 FROM users WHERE id = ?`, [toUserId]);
-  if (!existsUser) return res.status(404).json({ error: "´ë»óÀÌ Á¸ÀçÇÏÁö ¾ÊÀ½" });
+  if (!existsUser) return res.status(404).json({ error: "ëŒ€ìƒì´ ì¡´ì¬í•˜ì§€ ì•ŠìŒ" });
 
   const existing = await db.get(
     `SELECT * FROM friends WHERE
@@ -437,8 +437,8 @@ app.post("/api/friends/request", csrfProtection, authRequired, async (req, res) 
     );
     return res.json({ ok: true, status: "pending" });
   }
-  if (existing.status === "accepted") return res.status(409).json({ error: "ÀÌ¹Ì Ä£±¸ÀÔ´Ï´Ù." });
-  if (existing.status === "pending") return res.status(409).json({ error: "ÀÌ¹Ì ¿äÃ» ´ë±â Áß" });
+  if (existing.status === "accepted") return res.status(409).json({ error: "ì´ë¯¸ ì¹œêµ¬ì…ë‹ˆë‹¤." });
+  if (existing.status === "pending") return res.status(409).json({ error: "ì´ë¯¸ ìš”ì²­ ëŒ€ê¸° ì¤‘" });
 
   await db.run(`UPDATE friends SET status='pending', updated_at=? WHERE id=?`, [now, existing.id]);
   res.json({ ok: true, status: "pending" });
@@ -448,14 +448,14 @@ app.post("/api/friends/respond", csrfProtection, authRequired, async (req, res) 
   const me = req.user.id;
   const { fromUserId, action } = req.body || {};
   if (!fromUserId || !["accept", "reject"].includes(action)) {
-    return res.status(400).json({ error: "ÆÄ¶ó¹ÌÅÍ ¿À·ù" });
+    return res.status(400).json({ error: "íŒŒë¼ë¯¸í„° ì˜¤ë¥˜" });
   }
   const fr = await db.get(
     `SELECT * FROM friends WHERE requester_id = ? AND addressee_id = ?`,
     [fromUserId, me]
   );
   if (!fr || fr.status !== "pending") {
-    return res.status(404).json({ error: "´ë±âÁß ¿äÃ»ÀÌ ¾øÀ½" });
+    return res.status(404).json({ error: "ëŒ€ê¸°ì¤‘ ìš”ì²­ì´ ì—†ìŒ" });
   }
   const now = nowISO();
   const newStatus = action === "accept" ? "accepted" : "rejected";
@@ -482,15 +482,15 @@ app.get("/api/friends/list", authRequired, async (req, res) => {
 });
 
 /* -------------------- Diary APIs -------------------- */
-// ´ÙÀÌ¾î¸® ¾÷·Îµå (¿©·¯ Àå)
+// ë‹¤ì´ì–´ë¦¬ ì—…ë¡œë“œ (ì—¬ëŸ¬ ì¥)
 app.post("/api/diary", csrfProtection, authRequired, (req, res) => {
   uploadDiaryMany.array("images", 9)(req, res, async (err) => {
     try {
-      if (err) return res.status(400).json({ error: err.message || "¾÷·Îµå ½ÇÆĞ" });
+      if (err) return res.status(400).json({ error: err.message || "ì—…ë¡œë“œ ì‹¤íŒ¨" });
       const { date, text } = req.body || {};
       const images = req.files || [];
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date || ""))) return res.status(400).json({ error: "Àß¸øµÈ ³¯Â¥" });
-      if (!images.length) return res.status(400).json({ error: "ÀÌ¹ÌÁö ÆÄÀÏ ÇÊ¿ä" });
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date || ""))) return res.status(400).json({ error: "ì˜ëª»ëœ ë‚ ì§œ" });
+      if (!images.length) return res.status(400).json({ error: "ì´ë¯¸ì§€ íŒŒì¼ í•„ìš”" });
 
       const entryId = "de_" + nanoid(16);
       const now = nowISO();
@@ -511,12 +511,12 @@ app.post("/api/diary", csrfProtection, authRequired, (req, res) => {
       res.json({ ok: true, entryId, thumbnail_url: thumb, count: images.length });
     } catch (e2) {
       console.error(e2);
-      res.status(500).json({ error: "¾÷·Îµå ½ÇÆĞ" });
+      res.status(500).json({ error: "ì—…ë¡œë“œ ì‹¤íŒ¨" });
     }
   });
 });
 
-// ÇÁ·ÎÇÊ °¶·¯¸®¿ë
+// í”„ë¡œí•„ ê°¤ëŸ¬ë¦¬ìš©
 app.get("/api/diary/:userId/photos", authRequired, async (req, res) => {
   const limit = Math.max(1, Math.min(100, parseInt(req.query.limit || "60", 10)));
   const rows = await db.all(
@@ -531,10 +531,10 @@ app.get("/api/diary/:userId/photos", authRequired, async (req, res) => {
   res.json({ items: rows });
 });
 
-// Æ¯Á¤ ³¯Â¥ÀÇ ³» ´ÙÀÌ¾î¸®
+// íŠ¹ì • ë‚ ì§œì˜ ë‚´ ë‹¤ì´ì–´ë¦¬
 app.get("/api/diary/day/:date", authRequired, async (req, res) => {
   const date = String(req.params.date || "");
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: "Àß¸øµÈ ³¯Â¥" });
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: "ì˜ëª»ëœ ë‚ ì§œ" });
   const entry = await db.get(
     `SELECT id, text, thumbnail_url FROM diary_entries WHERE user_id = ? AND date = ?`,
     [req.user.id, date]
@@ -547,16 +547,16 @@ app.get("/api/diary/day/:date", authRequired, async (req, res) => {
   res.json({ entry, photos });
 });
 
-// ´ÙÀÌ¾î¸® »èÁ¦
+// ë‹¤ì´ì–´ë¦¬ ì‚­ì œ
 app.delete("/api/diary/entry/:id", csrfProtection, authRequired, async (req, res) => {
   const id = String(req.params.id);
   const row = await db.get(`SELECT 1 FROM diary_entries WHERE id = ? AND user_id = ?`, [id, req.user.id]);
-  if (!row) return res.status(404).json({ error: "¿£Æ®¸®°¡ ¾ø°Å³ª ±ÇÇÑ ¾øÀ½" });
+  if (!row) return res.status(404).json({ error: "ì—”íŠ¸ë¦¬ê°€ ì—†ê±°ë‚˜ ê¶Œí•œ ì—†ìŒ" });
   await db.run(`DELETE FROM diary_entries WHERE id = ?`, [id]);
   res.json({ ok: true });
 });
 
-// »çÁø ÇÑ Àå »èÁ¦
+// ì‚¬ì§„ í•œ ì¥ ì‚­ì œ
 app.delete("/api/diary/photo/:id", csrfProtection, authRequired, async (req, res) => {
   const id = String(req.params.id);
   const row = await db.get(
@@ -564,7 +564,7 @@ app.delete("/api/diary/photo/:id", csrfProtection, authRequired, async (req, res
       WHERE p.id = ? AND e.user_id = ?`,
     [id, req.user.id]
   );
-  if (!row) return res.status(404).json({ error: "»çÁøÀÌ ¾ø°Å³ª ±ÇÇÑ ¾øÀ½" });
+  if (!row) return res.status(404).json({ error: "ì‚¬ì§„ì´ ì—†ê±°ë‚˜ ê¶Œí•œ ì—†ìŒ" });
   await db.run(`DELETE FROM diary_photos WHERE id = ?`, [id]);
   res.json({ ok: true });
 });
@@ -573,7 +573,7 @@ app.delete("/api/diary/photo/:id", csrfProtection, authRequired, async (req, res
 app.post("/api/schedules", csrfProtection, authRequired, async (req, res) => {
   try {
     const { title, start_at, end_at, location } = req.body || {};
-    if (!title || !start_at) return res.status(400).json({ error: "title, start_at ÇÊ¿ä" });
+    if (!title || !start_at) return res.status(400).json({ error: "title, start_at í•„ìš”" });
     const id = "sc_" + nanoid(16);
     const now = nowISO();
     await db.run(
@@ -584,13 +584,13 @@ app.post("/api/schedules", csrfProtection, authRequired, async (req, res) => {
     res.json({ ok: true, id });
   } catch (e) {
     console.error(e);
-    res.status(500).json({ error: "¼­¹ö ¿À·ù" });
+    res.status(500).json({ error: "ì„œë²„ ì˜¤ë¥˜" });
   }
 });
 
 app.get("/api/schedules/day/:date", authRequired, async (req, res) => {
   const date = String(req.params.date || "");
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: "Àß¸øµÈ ³¯Â¥" });
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: "ì˜ëª»ëœ ë‚ ì§œ" });
   const rows = await db.all(
     `SELECT id, title, start_at, end_at, location
        FROM schedules
@@ -603,7 +603,7 @@ app.get("/api/schedules/day/:date", authRequired, async (req, res) => {
 
 app.get("/api/schedules/range", authRequired, async (req, res) => {
   const { start, end } = req.query;
-  if (!start || !end) return res.status(400).json({ error: "start,end ÇÊ¿ä" });
+  if (!start || !end) return res.status(400).json({ error: "start,end í•„ìš”" });
   const rows = await db.all(
     `SELECT id, title, start_at, end_at, location
        FROM schedules
@@ -617,7 +617,7 @@ app.get("/api/schedules/range", authRequired, async (req, res) => {
 app.patch("/api/schedules/:id", csrfProtection, authRequired, async (req, res) => {
   const id = String(req.params.id);
   const own = await db.get(`SELECT 1 FROM schedules WHERE id = ? AND user_id = ?`, [id, req.user.id]);
-  if (!own) return res.status(404).json({ error: "ÀÏÁ¤ÀÌ ¾ø°Å³ª ±ÇÇÑ ¾øÀ½" });
+  if (!own) return res.status(404).json({ error: "ì¼ì •ì´ ì—†ê±°ë‚˜ ê¶Œí•œ ì—†ìŒ" });
   const { title, start_at, end_at, location } = req.body || {};
   await db.run(
     `UPDATE schedules SET
@@ -642,7 +642,7 @@ app.patch("/api/schedules/:id", csrfProtection, authRequired, async (req, res) =
 app.delete("/api/schedules/:id", csrfProtection, authRequired, async (req, res) => {
   const id = String(req.params.id);
   const own = await db.get(`SELECT 1 FROM schedules WHERE id = ? AND user_id = ?`, [id, req.user.id]);
-  if (!own) return res.status(404).json({ error: "ÀÏÁ¤ÀÌ ¾ø°Å³ª ±ÇÇÑ ¾øÀ½" });
+  if (!own) return res.status(404).json({ error: "ì¼ì •ì´ ì—†ê±°ë‚˜ ê¶Œí•œ ì—†ìŒ" });
   await db.run(`DELETE FROM schedules WHERE id = ?`, [id]);
   res.json({ ok: true });
 });
@@ -720,11 +720,12 @@ app.use((err, req, res, next) => {
     return res.status(403).json({ error: "CSRF token invalid" });
   }
   console.error("Unhandled error:", err);
-  res.status(500).json({ error: "¼­¹ö ¿À·ù" });
+  res.status(500).json({ error: "ì„œë²„ ì˜¤ë¥˜" });
 });
 
 /* -------------------- Start -------------------- */
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`? Server started on PORT ${PORT}`);
 });
+
 

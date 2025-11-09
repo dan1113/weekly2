@@ -1,4 +1,4 @@
-// /public/js/profile-edit.js (recreated)
+﻿// /public/js/profile-edit.js (recreated)
 async function getCsrf() {
   const r = await fetch('/api/csrf', { credentials: 'include' });
   const j = await r.json();
@@ -7,7 +7,7 @@ async function getCsrf() {
 
 function isAcceptableImage(file) {
   if (!file) return false;
-  const okType = /^image\/(png|jpe?g|gif|webp|avif)$/i.test(file.type);
+  const okType = /^image\/(png|jpe?g|gif|webp|avif|heic|heif)$/i.test(file.type);
   const okSize = file.size <= 2 * 1024 * 1024; // 2MB
   return okType && okSize;
 }
@@ -105,4 +105,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
   });
 });
+
 
