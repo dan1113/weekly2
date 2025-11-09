@@ -169,7 +169,19 @@ function closeQuickDiary() {
 
 qFiles.addEventListener("change", () => {
   qPreview.innerHTML = "";
-  [...(qFiles.files || [])].forEach((f) => {
+
+  // 한 장당 4MB 제한 검사
+  const validFiles = [];
+  for (const f of qFiles.files) {
+    if (f.size > 4 * 1024 * 1024) {
+      alert(`"${f.name}" 파일이 4MB를 초과했어요. 제외됩니다.`);
+      continue;
+    }
+    validFiles.push(f);
+  }
+
+  // 미리보기
+  validFiles.forEach((f) => {
     const url = URL.createObjectURL(f);
     const img = document.createElement("img");
     img.src = url;
@@ -178,13 +190,17 @@ qFiles.addEventListener("change", () => {
     img.style.objectFit = "cover";
     qPreview.appendChild(img);
   });
+
+  // 선택된 파일 중 4MB 이하만 다시 반영
+  qFiles._validFiles = validFiles; // 커스텀 속성으로 임시 저장
 });
+
 
 qSave.addEventListener("click", () => {
   if (!qCurrentDateStr) return;
   const all = loadAll();
   const text = qNote.value.trim();
-  const files = qFiles.files;
+  const files = qFiles._validFiles || qFiles.files; // 4MB 이하만 저장
   const images = [];
 
   if (files?.length) {
