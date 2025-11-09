@@ -1,0 +1,20 @@
+<svg width="320" height="100" viewBox="0 0 320 100" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- 만년필 잉크 살짝 번짐 -->
+    <filter id="inkBlur"><feGaussianBlur in="SourceGraphic" stdDeviation="0.3"></feGaussianBlur></filter>
+  </defs>
+
+  <!-- 로고 텍스트 (색상: currentColor) -->
+  <text x="45" y="65" fill="currentColor" font-family="Dancing Script, cursive" font-size="48" letter-spacing="1.5" filter="url(#inkBlur)">Weekly</text>
+
+  <!-- 아래 점 7개 (색상: currentColor) -->
+  <g fill="currentColor" opacity="0.85">
+    <circle cx="90" cy="90" r="1.9"></circle>
+    <circle cx="112" cy="90" r="1.9"></circle>
+    <circle cx="134" cy="90" r="1.9"></circle>
+    <circle cx="156" cy="90" r="1.9"></circle>
+    <circle cx="178" cy="90" r="1.9"></circle>
+    <circle cx="200" cy="90" r="1.9"></circle>
+    <circle cx="222" cy="90" r="1.9"></circle>
+  </g>
+</svg>

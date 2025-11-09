@@ -1,0 +1,7 @@
+# .gitignore
+node_modules/
+.env
+uploads/
+public/uploads/
+auth.db
+.DS_Store

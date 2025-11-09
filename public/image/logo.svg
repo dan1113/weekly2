@@ -1,0 +1,9 @@
+<svg width="320" height="100" viewBox="0 0 320 100" xmlns="http://www.w3.org/2000/svg">
+  <defs><filter id="inkBlur"><feGaussianBlur in="SourceGraphic" stdDeviation="0.3"></feGaussianBlur></filter></defs>
+  <text x="45" y="65" fill="#ffffff" font-family="Dancing Script, cursive" font-size="48" letter-spacing="1.5" filter="url(#inkBlur)">Weekly</text>
+  <g fill="#ffffff" opacity="0.85">
+    <circle cx="90" cy="90" r="1.9"></circle><circle cx="112" cy="90" r="1.9"></circle><circle cx="134" cy="90" r="1.9"></circle>
+    <circle cx="156" cy="90" r="1.9"></circle><circle cx="178" cy="90" r="1.9"></circle><circle cx="200" cy="90" r="1.9"></circle>
+    <circle cx="222" cy="90" r="1.9"></circle>
+  </g>
+</svg>

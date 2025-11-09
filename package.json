@@ -1,0 +1,36 @@
+{
+  "name": "weekly-server",
+  "version": "1.0.0",
+  "description": "Weekly calendar & diary app backend (Node + Express + SQLite)",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.7",
+    "csurf": "^1.11.0",
+    "express": "^4.19.2",
+    "express-rate-limit": "^7.4.0",
+    "helmet": "^7.0.0",
+    "multer": "^2.0.2",
+    "nanoid": "^5.0.3",
+    "sqlite": "^5.1.1",
+    "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  },
+  "keywords": [
+    "weekly",
+    "calendar",
+    "diary",
+    "express",
+    "sqlite",
+    "auth"
+  ],
+  "author": "이태형",
+  "license": "MIT"
+}

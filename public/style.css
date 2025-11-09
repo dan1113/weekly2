@@ -1,0 +1,100 @@
+:root{
+  --bg:#000; --fg:#fff; --muted:rgba(255,255,255,.56); --line:rgba(255,255,255,.14);
+  --card:#040404; --tap:52px;
+}
+
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  margin:0; background:var(--bg); color:var(--fg);
+  font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",Inter,system-ui,sans-serif;
+  display:flex; min-height:100svh;
+}
+
+/* 레이아웃 */
+.wrap{
+  margin:auto; width:min(560px,94%);
+  padding:28px 18px 34px;
+  border:1px solid var(--line);
+  border-radius:20px;
+  background:linear-gradient(180deg, #040404 0%, #000 100%);
+  box-shadow: 0 10px 30px rgba(0,0,0,.35);
+}
+
+/* 헤더 로고 */
+.brand{display:flex; align-items:center; gap:12px; margin-bottom:14px}
+.brand .dot{flex:0 0 8px; width:8px; height:8px; border-radius:50%; background:#fff; opacity:.85}
+.brand h1{margin:0; font-size:22px; letter-spacing:.4px}
+
+/* 카드 타이틀/설명 */
+h2{margin:6px 0 8px; font-size:28px; letter-spacing:.2px}
+.sub{margin:0 0 18px; color:var(--muted); font-size:13px}
+
+/* 폼 */
+form{display:flex; flex-direction:column; gap:14px}
+.field{display:flex; flex-direction:column; gap:8px}
+label{font-size:12px; color:var(--muted)}
+input{
+  width:100%; background:var(--bg); color:var(--fg);
+  border:1px solid var(--line); border-radius:14px;
+  padding:14px 16px; font-size:15px; outline:none;
+  transition:border-color .15s ease, box-shadow .15s ease;
+}
+input::placeholder{color:rgba(255,255,255,.36)}
+input:focus{border-color:#fff; box-shadow:0 0 0 3px rgba(255,255,255,.12)}
+.hint{color:var(--muted); font-size:12px}
+
+/* 버튼 */
+.row{display:flex; gap:10px; justify-content:space-between; margin-top:6px}
+.btn{
+  height:var(--tap); padding:0 18px; border-radius:14px; cursor:pointer;
+  border:1px solid var(--line); background:#fff; color:#000; font-weight:700; letter-spacing:.2px;
+}
+.btn.ghost{background:transparent; color:#fff}
+.btn:active{transform:translateY(1px)}
+.btn:focus-visible{outline:2px solid #fff; outline-offset:2px}
+
+/* 에러 */
+.err{min-height:16px; color:#ffb1b1; font-size:12px}
+
+/* 링크 보조 */
+.nav{margin-top:16px; text-align:center; color:var(--muted); font-size:13px}
+a{color:#fff; text-underline-offset:3px}
+
+/* 헤더 바(로고 + 점 7개 라인) */
+.header{
+  display:flex; align-items:center; justify-content:space-between;
+  margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid var(--line);
+}
+.weekdots{display:flex; gap:10px; align-items:center}
+.weekdots .w{width:6px; height:6px; border-radius:50%; background:#fff; opacity:.85}
+
+/* 모바일 폭 좁을 때 */
+@media (max-width:380px){
+  .wrap{padding:24px 14px 30px}
+  h2{font-size:24px}
+}
+/* ===== Bottom Nav (black & white minimal) ===== */
+:root{ --nav-h: 64px; }
+
+body { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom)); }
+
+.navbar{
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 200;
+  height: calc(var(--nav-h) + env(safe-area-inset-bottom));
+  background: #000; border-top: 1px solid var(--line);
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.navbtn{
+  display: grid; place-items: center; gap: 4px;
+  color: var(--muted); text-decoration: none; padding: 8px 0;
+  font-size: 12px; cursor: pointer; user-select: none;
+}
+.navbtn strong{ font-size: 14px; color: var(--fg); }
+
+.navbtn.active{ color: #fff; font-weight: 600; }
+.navbtn.active strong{ text-decoration: underline; text-underline-offset: 3px; }
+
+.navbtn:active{ transform: translateY(1px); }

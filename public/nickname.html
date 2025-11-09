@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>닉네임 설정 | Weekly</title>
+<link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <main class="wrap">
+    <div class="header">
+      <div class="brand"><img src="/logo.svg" alt="Weekly 로고" height="28" /></div>
+      <div class="weekdots" aria-hidden="true">
+        <div class="w"></div><div class="w"></div><div class="w"></div><div class="w"></div>
+        <div class="w"></div><div class="w"></div><div class="w"></div>
+      </div>
+    </div>
+
+    <h2>닉네임</h2>
+    <p class="sub">캘린더에서 표시될 이름을 입력하세요.</p>
+
+    <form id="form" novalidate>
+      <div class="field">
+        <label for="nickname">닉네임</label>
+        <input id="nickname" maxlength="24" placeholder="예: 자비, 태형" required />
+      </div>
+
+      <div id="err" class="err"></div>
+
+      <div class="row">
+        <button type="button" class="btn ghost" id="logoutBtn">로그아웃</button>
+        <button type="submit" class="btn">저장 후 이동</button>
+      </div>
+    </form>
+  </main>
+
+  <script src="/js/nickname.js" defer></script>
+</body>
+</html>
