@@ -18,7 +18,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 /* -------------------- Config -------------------- */
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 100000;
 const NODE_ENV = process.env.NODE_ENV || "development";
 const isProd = NODE_ENV === "production";
 
@@ -357,12 +357,11 @@ app.patch("/api/users/me/bio", csrfProtection, authRequired, async (req, res) =>
 });
 
 // 아바타 업로드(단일) — ★ 중복 없이 이거 한 개만!
-// 아바타 업로드(단일) — multer → csrf 순서!
 app.post(
   "/api/users/me/avatar",
+  csrfProtection,
   authRequired,
-  uploadAvatar.single("avatar"),   // ← 먼저 파일 파싱
-  csrfProtection,                  // ← 그다음 토큰 검증
+  uploadAvatar.single("avatar"),
   async (req, res) => {
     try {
       if (!req.file) return res.status(400).json({ error: "파일 없음" });
@@ -375,7 +374,6 @@ app.post(
     }
   }
 );
-
 
 // 사용자 검색
 app.get("/api/users/search", authRequired, async (req, res) => {
@@ -726,7 +724,6 @@ app.use((err, req, res, next) => {
 });
 
 /* -------------------- Start -------------------- */
-app.listen(PORT, () => {
-  console.log(`✔ Auth server running on http://localhost:${PORT}`);
-  if (!isProd) console.log(`NODE_ENV=${NODE_ENV}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`✅ Server started on PORT ${PORT}`);
 });
