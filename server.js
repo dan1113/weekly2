@@ -1,4 +1,4 @@
-// server.js (최종본 All-in-One, dedup & fixes)
+﻿// server.js (최종본 All-in-One, dedup & fixes)
 import express from "express";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
@@ -18,7 +18,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 /* -------------------- Config -------------------- */
-const PORT = process.env.PORT || 100000;
+const PORT = process.env.PORT || 3000;
 const NODE_ENV = process.env.NODE_ENV || "development";
 const isProd = NODE_ENV === "production";
 

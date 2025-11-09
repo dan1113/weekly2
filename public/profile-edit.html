@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
@@ -19,18 +19,17 @@
   <div class="wrap">
     <h3>프로필 편집</h3>
     <div class="row">
-      <img id="preview" src="/image/avatar-default.png" alt="avatar">
-      <input id="file" type="file" accept="image/*">
+      <img id="preview" src="/image/logoblack.svg" alt="avatar" />
+      <input id="file" name="avatar" type="file" accept="image/*" />
     </div>
 
     <label for="bio">소개 (최대 160자)</label>
-    <textarea id="bio" maxlength="160" placeholder="자기소개를 적어보세요."></textarea>
+    <textarea id="bio" maxlength="160" placeholder="짧게 자기소개를 적어보세요."></textarea>
 
     <div style="height:12px"></div>
     <button id="save">저장</button>
   </div>
 
-  <!-- CSP 준수: 외부 모듈 스크립트만 사용 -->
   <script type="module" src="/js/profile-edit.js"></script>
   <script type="module" src="/js/nav.js"></script>
 </body>
