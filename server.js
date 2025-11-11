@@ -489,24 +489,28 @@ app.post("/api/diary", csrfProtection, authRequired, (req, res) => {
       if (err) return res.status(400).json({ error: err.message || "업로드 실패" });
       const { date, text } = req.body || {};
       const images = req.files || [];
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date || ""))) return res.status(400).json({ error: "잘못된 날짜" });
-      if (!images.length) return res.status(400).json({ error: "이미지 파일 필요" });
+      const safeDate = String(date || "");
+      const safeText = String(text || "");
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(safeDate)) return res.status(400).json({ error: "잘못된 날짜" });
+      if (!images.length && !safeText.trim()) return res.status(400).json({ error: "내용이나 이미지를 입력하세요" });
 
       const entryId = "de_" + nanoid(16);
       const now = nowISO();
-      const thumb = `/uploads/${images[0].filename}`;
+      const thumb = images.length ? `/uploads/${images[0].filename}` : null;
 
       await db.run(
         `INSERT INTO diary_entries (id, user_id, date, text, thumbnail_url, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [entryId, req.user.id, date, String(text || ""), thumb, now, now]
+        [entryId, req.user.id, safeDate, safeText, thumb, now, now]
       );
-      for (let i = 0; i < images.length; i++) {
-        await db.run(
-          `INSERT INTO diary_photos (id, entry_id, user_id, order_index, image_url, created_at)
-           VALUES (?, ?, ?, ?, ?, ?)`,
-          ["dp_" + nanoid(12), entryId, req.user.id, i, `/uploads/${images[i].filename}`, now]
-        );
+      if (images.length) {
+        for (let i = 0; i < images.length; i++) {
+          await db.run(
+            `INSERT INTO diary_photos (id, entry_id, user_id, order_index, image_url, created_at)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            ["dp_" + nanoid(12), entryId, req.user.id, i, `/uploads/${images[i].filename}`, now]
+          );
+        }
       }
       res.json({ ok: true, entryId, thumbnail_url: thumb, count: images.length });
     } catch (e2) {

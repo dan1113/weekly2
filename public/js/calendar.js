@@ -270,8 +270,8 @@ qSave.addEventListener("click", async () => {
   if (!qCurrentDateStr) return;
   const text = qNote ? qNote.value.trim() : "";
   const files = qSelectedFiles.length ? qSelectedFiles : [...(qFiles.files || [])];
-  if (!files.length) {
-    alert("이미지를 선택해 주세요.");
+  if (!files.length && !text) {
+    alert("내용이나 이미지를 입력해 주세요.");
     return;
   }
   const originalLabel = qSave.textContent;
@@ -282,9 +282,11 @@ qSave.addEventListener("click", async () => {
     const form = new FormData();
     form.append("date", qCurrentDateStr);
     form.append("text", text);
-    for (const file of files) {
-      const prepared = await prepareImageForUpload(file);
-      form.append("images", prepared);
+    if (files.length) {
+      for (const file of files) {
+        const prepared = await prepareImageForUpload(file);
+        form.append("images", prepared);
+      }
     }
     const res = await fetch("/api/diary", {
       method: "POST",
