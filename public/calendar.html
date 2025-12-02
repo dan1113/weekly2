@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
@@ -51,6 +51,8 @@
       padding: 0 16px;
       cursor: pointer;
     }
+    .primary { background: #fff; color: #000; border-color: #fff; }
+    .full { width: 100%; }
     button:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
     .weekday {
       display: grid;
@@ -112,7 +114,7 @@
     .footer {
       margin-top: auto;
       border-top: 1px solid var(--line);
-      padding: 14px 16px 18px;
+      padding: 14px 16px calc(18px + env(safe-area-inset-bottom));
       display: flex;
       justify-content: space-between;
       font-size: 13px;
@@ -129,13 +131,13 @@
       left: 0;
       right: 0;
       bottom: 0;
-      z-index: 90;
+      z-index: 900;
       background: #050505;
       border-top: 1px solid var(--line);
       border-radius: 20px 20px 0 0;
       transform: translateY(110%);
       transition: transform .25s ease;
-      padding: 18px 16px calc(20px + env(safe-area-inset-bottom));
+      padding: 18px 16px calc(24px + var(--nav-h) + env(safe-area-inset-bottom));
     }
     .quick-sheet.open { transform: translateY(0); }
     .quick-sheet .head { display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px; }
@@ -183,7 +185,7 @@
       background: rgba(0,0,0,.6);
       display: none;
       align-items: flex-end;
-      z-index: 80;
+      z-index: 850;
     }
     #view-sheet.open { display: flex; }
     .viewer-card {
@@ -247,7 +249,7 @@
     <label for="qFiles">사진 첨부 (최대 5장, 각 5MB)</label>
     <input type="file" id="qFiles" accept="image/*" multiple />
     <div class="quick-preview" id="qPreview"></div>
-    <button id="qSave" style="margin-top: 12px; width: 100%;">저장</button>
+    <button id="qSave" class="primary full" style="margin-top: 12px;">저장</button>
   </div>
 
   <div id="view-sheet">
@@ -275,8 +277,7 @@
     </div>
   </div>
 
-  <!-- 기존 nav.js 활용 -->
-  <script type="module" src="/js/calendar_base64.js"></script>
+  <script type="module" src="/js/calendar.js"></script>
   <script type="module" src="/js/nav.js"></script>
 </body>
 </html>
