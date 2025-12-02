@@ -37,7 +37,14 @@ async function fetchOverview(year, month) {
     return { days: [] };
   }
 }
-
+function validateFiles(files) {
+     if (files.length > MAX_FILE_COUNT) {
+       errors.push(`최대 ${MAX_FILE_COUNT}장까지 업로드 가능합니다.`);
+     }
+     if (file.size > MAX_FILE_SIZE) {
+       errors.push(`${file.name}의 크기가 5MB를 초과합니다.`);
+     }
+   }
 async function fetchDiaryDay(dateStr) {
   try {
     const res = await apiFetch(`/api/diary/day/${dateStr}`);
@@ -95,6 +102,14 @@ async function render() {
     const dateStr = fmt(d);
     const ov = dayMap.get(dateStr);
     cell.className = "cell" + (selectedDate && d.toDateString() === selectedDate.toDateString() ? " selected" : "");
+     function fileToBase64(file) {
+     return new Promise((resolve, reject) => {
+       const reader = new FileReader();
+       reader.onload = () => resolve(reader.result);
+       reader.onerror = reject;
+       reader.readAsDataURL(file);
+     });
+   }
     if (!inMonth) cell.classList.add("dim");
     if (d.toDateString() === today.toDateString()) {
       cell.style.background = "#fff";
@@ -120,7 +135,24 @@ async function render() {
     num.className = "num";
     num.textContent = d.getDate();
     cell.appendChild(num);
+       async function uploadBase64Images(dateStr, files) {
+     const base64Files = await Promise.all(
+       prepared.map(async (file, index) => {
+         const base64 = await fileToBase64(file);
+         return {
+           filename: file.name,
+           base64: base64,
+           mime: file.type,
+           order: index
+         };
+       })
+     );
 
+     const res = await fetch(`${API_BASE}/api/diary/upload-base64`, {
+       method: "POST",
+       body: JSON.stringify({ date: dateStr, files: base64Files })
+     });
+   }
     const hit = document.createElement("div");
     hit.className = "hit";
     hit.addEventListener("click", () => onClickDate(d));
@@ -372,7 +404,12 @@ if (qSave) qSave.addEventListener("click", async () => {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || "일기 저장에 실패했습니다.");
     }
-    
+       deleteBtn.onclick = async () => {
+     if (!confirm("이 날짜의 일기를 삭제하시겠습니까?")) return;
+     await fetch(`${API_BASE}/api/diary/day/${dateStr}`, {
+       method: "DELETE"
+     });
+   }
     invalidateOverview(qCurrentDateStr);
     await render();
     closeQuickDiary();
