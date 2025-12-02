@@ -52,6 +52,8 @@ app.use(
     crossOriginEmbedderPolicy: false,
   })
 );
+app.use(express.json({ limit: "10mb" })); // Base64용 사이즈 증가
+app.use(express.urlencoded({ extended: false, limit: "10mb" }));
 app.use(express.json({ limit: "5mb" }));
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser(process.env.COOKIE_SECRET || "dev_secret_change_me"));
@@ -114,6 +116,15 @@ CREATE TABLE IF NOT EXISTS diary_entries (
   FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_diary_user_date ON diary_entries(user_id, date);
+CREATE TABLE IF NOT EXISTS diary_photos (
+  id TEXT PRIMARY KEY,
+  entry_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  order_index INTEGER NOT NULL,
+  image_data TEXT NOT NULL,  -- ⭐ Base64 문자열 저장
+  created_at TEXT NOT NULL,
+  ...
+);
 
 CREATE TABLE IF NOT EXISTS diary_photos (
   id TEXT PRIMARY KEY,
@@ -140,7 +151,14 @@ CREATE TABLE IF NOT EXISTS schedules (
 );
 CREATE INDEX IF NOT EXISTS idx_sched_user_start ON schedules(user_id, start_at);
 `);
-
+async function ensureDiaryPhotosColumns() {
+  const cols = await db.all(`PRAGMA table_info(diary_photos)`);
+  const names = new Set(cols.map(c => c.name));
+  if (!names.has("image_data")) {
+    console.log("⚠️  Adding image_data column to diary_photos...");
+    await db.exec(`ALTER TABLE diary_photos ADD COLUMN image_data TEXT;`);
+  }
+}
 // 구버전 호환용: avatar_url, bio 보장
 async function ensureUserColumns() {
   const cols = await db.all(`PRAGMA table_info(users)`);
@@ -462,7 +480,29 @@ app.post("/api/friends/respond", csrfProtection, authRequired, async (req, res) 
   await db.run(`UPDATE friends SET status=?, updated_at=? WHERE id=?`, [newStatus, now, fr.id]);
   res.json({ ok: true, status: newStatus });
 });
-
+app.post("/api/diary", csrfProtection, authRequired, async (req, res) => {
+  const { date, text, images } = req.body || {}; // images = Base64 배열
+  
+  // 이미지 개수 제한 (5장)
+  if (imageArray.length > 5) {
+    return res.status(400).json({ error: "최대 5장까지 업로드 가능합니다." });
+  }
+  
+  // Base64 크기 검증 (각 이미지 5MB)
+  for (const img of imageArray) {
+    const sizeInBytes = (img.length * 3) / 4;
+    if (sizeInBytes > 5 * 1024 * 1024) {
+      return res.status(400).json({ error: "각 이미지는 5MB 이하여야 합니다." });
+    }
+  }
+  
+  // DB에 Base64 저장
+  await db.run(
+    `INSERT INTO diary_photos (id, entry_id, user_id, order_index, image_data, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    ["dp_" + nanoid(12), entryId, req.user.id, i, imageArray[i], now]
+  );
+});
 app.get("/api/friends/list", authRequired, async (req, res) => {
   const me = req.user.id;
   const rows = await db.all(

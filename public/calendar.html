@@ -14,7 +14,7 @@
       --line: rgba(255,255,255,.14);
       --tap: 48px;
     }
-    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     body {
       margin: 0;
       min-height: 100vh;
@@ -65,6 +65,7 @@
       grid-template-columns: repeat(7,1fr);
       gap: 6px;
       padding: 8px 16px 20px;
+      padding-bottom: calc(80px + env(safe-area-inset-bottom));
     }
     .cell {
       position: relative;
@@ -111,7 +112,7 @@
     .footer {
       margin-top: auto;
       border-top: 1px solid var(--line);
-      padding: 14px 16px calc(18px + env(safe-area-inset-bottom));
+      padding: 14px 16px 18px;
       display: flex;
       justify-content: space-between;
       font-size: 13px;
@@ -137,7 +138,7 @@
       padding: 18px 16px calc(20px + env(safe-area-inset-bottom));
     }
     .quick-sheet.open { transform: translateY(0); }
-    .quick-sheet .head { display:flex; justify-content:space-between; align-items:center; }
+    .quick-sheet .head { display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px; }
     .quick-sheet textarea {
       width: 100%;
       min-height: 120px;
@@ -147,6 +148,21 @@
       color: var(--fg);
       padding: 12px;
       resize: vertical;
+      font-family: inherit;
+    }
+    .quick-sheet label {
+      display: block;
+      margin: 12px 0 6px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+    .quick-sheet input[type="file"] {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: transparent;
+      color: var(--fg);
     }
     .quick-preview {
       margin-top: 10px;
@@ -226,12 +242,12 @@
       <strong id="qDate">2025-11-10</strong>
       <button id="qClose">닫기</button>
     </div>
-    <label class="label" for="qNote">다이어리 메모</label>
+    <label for="qNote">다이어리 메모</label>
     <textarea id="qNote" placeholder="오늘 있었던 일을 적어보세요."></textarea>
-    <div class="label">사진 첨부</div>
+    <label for="qFiles">사진 첨부 (최대 5장, 각 5MB)</label>
     <input type="file" id="qFiles" accept="image/*" multiple />
     <div class="quick-preview" id="qPreview"></div>
-    <button id="qSave">저장</button>
+    <button id="qSave" style="margin-top: 12px; width: 100%;">저장</button>
   </div>
 
   <div id="view-sheet">
@@ -259,7 +275,8 @@
     </div>
   </div>
 
-  <script type="module" src="/js/calendar.js"></script>
+  <!-- 기존 nav.js 활용 -->
+  <script type="module" src="/js/calendar_base64.js"></script>
   <script type="module" src="/js/nav.js"></script>
 </body>
 </html>
