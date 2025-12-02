@@ -1,10 +1,11 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>친구 찾기</title>
 <link rel="stylesheet" href="/style.css" />
+<script src="/js/bootstrap.js"></script>
 <style>
   body { background:#000; color:#fff; font-family:-apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo","Noto Sans KR", system-ui, sans-serif; margin:0; }
   .wrap { max-width:480px; margin:0 auto; padding:16px; }
@@ -21,31 +22,60 @@
 <body>
   <div class="wrap">
     <div class="row">
-      <input id="q" placeholder="닉네임 또는 아이디 검색" />
+      <input id="q" placeholder="닉네임이나 아이디로 검색" />
       <button id="btn">검색</button>
     </div>
     <div class="list" id="list"></div>
   </div>
-<script>
-document.getElementById('btn').addEventListener('click', async () => {
-  const q = document.getElementById('q').value.trim();
-  const r = await fetch('/api/users/search?q=' + encodeURIComponent(q), { credentials:'include' });
-  const j = await r.json();
-  const list = document.getElementById('list');
-  list.innerHTML = '';
-  (j.users || []).forEach(u => {
-    const a = document.createElement('a');
-    a.className = 'card';
-    a.href = '/profile.html?id=' + encodeURIComponent(u.id);
-    a.innerHTML = `
-      <img class="avatar" src="${u.avatar_url || '/image/avatar-default.png'}" alt="">
-      <div>
-        <div class="name">${u.nickname || '(닉네임 없음)'}</div>
-        <div class="muted">@${u.username}</div>
-      </div>
-    `;
-    list.appendChild(a);
-  });
+<script type="module">
+import { API_BASE, AUTH_HEADERS } from "/js/config.js";
+
+const input = document.getElementById('q');
+const button = document.getElementById('btn');
+const list = document.getElementById('list');
+
+async function safeJson(res) {
+  try {
+    return await res.json();
+  } catch {
+    return {};
+  }
+}
+
+async function search() {
+  const q = input.value.trim();
+  if (!q) {
+    list.innerHTML = '';
+    return;
+  }
+  try {
+    const res = await fetch(`${API_BASE}/api/users/search?q=${encodeURIComponent(q)}`, {
+      credentials: 'include',
+      headers: AUTH_HEADERS(),
+    });
+    const data = await safeJson(res);
+    list.innerHTML = '';
+    (data.users || []).forEach((u) => {
+      const a = document.createElement('a');
+      a.className = 'card';
+      a.href = `/profile.html?id=${encodeURIComponent(u.id)}`;
+      a.innerHTML = `
+        <img class="avatar" src="${u.avatar_url || '/image/avatar-default.png'}" alt="">
+        <div>
+          <div class="name">${u.nickname || '(닉네임 없음)'}</div>
+          <div class="muted">@${u.username}</div>
+        </div>
+      `;
+      list.appendChild(a);
+    });
+  } catch (err) {
+    console.error('search failed', err);
+  }
+}
+
+button.addEventListener('click', search);
+input.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') search();
 });
 </script>
 <script type="module" src="/js/nav.js"></script>

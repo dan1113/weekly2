@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Weekly</title>
+  <link rel="stylesheet" href="/style.css" />
+  <script src="/js/bootstrap.js"></script>
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      margin: 0;
+      background: #000;
+      color: #fff;
+      font-family: -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .hero {
+      text-align: center;
+      padding: 32px 28px 40px;
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 24px;
+      max-width: 480px;
+      width: min(100%, 520px);
+      background: radial-gradient(circle at top, rgba(255,255,255,.08), transparent 65%);
+    }
+    .hero img {
+      display: block;
+      width: clamp(96px, 30vw, 150px);
+      height: auto;
+      margin: 0 auto 20px;
+    }
+    .hero h1 {
+      font-size: clamp(28px, 5vw, 40px);
+      margin: 0 0 12px;
+      font-weight: 700;
+    }
+    .hero p {
+      margin: 0 0 28px;
+      color: rgba(255,255,255,.72);
+      line-height: 1.5;
+      font-size: 16px;
+    }
+    .hero a {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 15px 32px;
+      border-radius: 999px;
+      border: 1px solid #fff;
+      background: #fff;
+      color: #000;
+      font-weight: 600;
+      text-decoration: none;
+      transition: transform .15s ease, box-shadow .15s ease;
+      min-width: 200px;
+    }
+    .hero a:hover { transform: translateY(-1px); box-shadow: 0 12px 24px rgba(255,255,255,.18); }
+  </style>
+  <script>
+    // 로그인 상태면 바로 캘린더로 이동 (선택 사항)
+    (async () => {
+      try {
+        const res = await fetch(`/api/auth/session`, { credentials: 'include' });
+        const data = await res.json().catch(() => null);
+        if (data && data.loggedIn) {
+          // 이미 로그인 상태면 캘린더로 이동
+          // location.href = '/calendar.html';
+        }
+      } catch {}
+    })();
+  </script>
+  
+</head>
+<body>
+  <main class="hero">
+    <img src="/image/logo.png" alt="Weekly 로고" />
+    <h1>Weekly</h1>
+    <p>하루를 기록하고 주간 흐름을 한눈에 확인하세요.<br />가볍지만 단단한 나만의 일기장입니다.</p>
+    <a href="/login.html" aria-label="Weekly 시작하기">Weekly 시작하기</a>
+  </main>
+</body>
+</html>
+

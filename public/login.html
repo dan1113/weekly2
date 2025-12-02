@@ -1,16 +1,16 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>로그인 | Weekly</title>
-<link rel="stylesheet" href="/style.css" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>로그인 | Weekly</title>
+  <link rel="stylesheet" href="/style.css" />
+  <script src="/js/bootstrap.js"></script>
 </head>
-<!-- ...head 동일 -->
 <body>
   <main class="wrap">
     <div class="header">
-      <div class="brand"><img src="/logo.svg" alt="Weekly 로고" height="28" /></div>
+      <div class="brand"><img src="/image/logo.png" alt="Weekly 로고" height="28" /></div>
       <div class="weekdots" aria-hidden="true">
         <div class="w"></div><div class="w"></div><div class="w"></div><div class="w"></div>
         <div class="w"></div><div class="w"></div><div class="w"></div>
@@ -18,7 +18,7 @@
     </div>
 
     <h2>로그인</h2>
-    <p class="sub">다이어리 캘린더로 이동합니다.</p>
+    <p class="sub">Weekly 캘린더를 이용하려면 로그인하세요.</p>
 
     <form id="form" novalidate>
       <div class="field">
@@ -27,7 +27,7 @@
       </div>
       <div class="field">
         <label for="password">비밀번호</label>
-        <input id="password" type="password" autocomplete="current-password" placeholder="••••••••" required />
+        <input id="password" type="password" autocomplete="current-password" placeholder="••••••" required />
       </div>
 
       <div id="err" class="err"></div>
@@ -41,6 +41,6 @@
     </form>
   </main>
 
-  <script src="/js/login.js" defer></script>
+  <script type="module" src="/js/login.js"></script>
 </body>
 </html>

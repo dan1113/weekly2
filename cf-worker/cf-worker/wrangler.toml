@@ -1,0 +1,66 @@
+# ─────────────────────────────────────────────
+# wrangler.toml  (weeklydiary – Worker + Routes + R2 + D1)
+# ─────────────────────────────────────────────
+name = "weeklydiary"
+main = "src/worker.js"
+compatibility_date = "2024-11-01"
+
+# workers.dev 프리뷰 URL 유지
+workers_dev = true
+
+# 네 계정
+account_id = "221aea1842feb1dd85cddd780f02f3cc"
+
+
+
+# ── ENV VARS (워커에서 env.VAR 로 접근)
+[vars]
+R2_BUCKET       = "weeklydiary"
+UPLOAD_MAX_MB   = "25"
+ALLOWED_MIME    = "image/jpeg,image/png,image/webp,image/avif,image/gif"
+PRESIGN_EXPIRES = "120"
+
+# CORS 허용 오리진 (쉼표 구분)
+ALLOWED_ORIGINS = "https://weeklydiary.store,https://www.weeklydiary.store,https://weeklydiary.pages.dev,http://localhost:8787,http://localhost:5173"
+
+# 쿠키 도메인/수명(초) – 워커에서 Set-Cookie 만들 때 사용하면 편함
+COOKIE_DOMAIN   = ".weeklydiary.store"
+SESSION_MAX_AGE = "1209600"       # 14일
+
+# ── ROUTES (커스텀 도메인에서 /api/* → 이 워커)
+[[routes]]
+pattern   = "weeklydiary.store/api/*"
+zone_name = "weeklydiary.store"
+
+[[routes]]
+pattern   = "www.weeklydiary.store/api/*"
+zone_name = "weeklydiary.store"
+
+# ⚠ 참고: pages.dev 는 네 소유 zone 이 아니라서 여기에 routes 못 겁니다.
+# pages.dev에서 테스트는 workers_dev 프리뷰(weeklydiary.<subdomain>.workers.dev)로 해주세요.
+
+# ── (선택) 충돌 원천 차단용: API 서브도메인으로 분리하고 싶다면 아래 주석 해제 + DNS에서 CNAME 생성
+# [[routes]]
+# pattern   = "api.weeklydiary.store/*"
+# zone_name = "weeklydiary.store"
+
+# ── R2 바인딩
+[[r2_buckets]]
+binding     = "R2"                # env.R2
+bucket_name = "weeklydiary"
+
+# ── D1 바인딩
+[[d1_databases]]
+binding       = "DB"              # env.DB
+database_name = "weeklydb"
+database_id   = "66fc34a2-abfc-41ed-b0a0-913fc661c484"
+
+# ── 로컬 개발 설정
+[dev]
+port = 8787
+# local_protocol = "http"
+# ip = "127.0.0.1"
+
+# ── 환경별 오버라이드(선택)
+# [env.production.vars]
+# ALLOWED_ORIGINS = "https://weeklydiary.store,https://www.weeklydiary.store"

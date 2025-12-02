@@ -1,33 +1,34 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>내 프로필</title>
-<link rel="stylesheet" href="/style.css" />
-<style>
-  :root{ --line: rgba(255,255,255,.14); --muted: rgba(255,255,255,.42); }
-  body{ margin:0; background:#000; color:#fff; font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif; }
-  .wrap{ max-width:480px; margin:0 auto; padding:16px 16px calc(16px + env(safe-area-inset-bottom)); }
-  .card{ border:1px solid var(--line); border-radius:16px; padding:16px; }
-  .row{ display:flex; align-items:center; gap:12px; }
-  .avatar{ width:72px; height:72px; border-radius:999px; object-fit:cover; background:#111; border:1px solid var(--line); }
-  .nick{ font-size:18px; font-weight:700; }
-  .user{ color:var(--muted); font-size:12px; }
-  .btn{ border:1px solid var(--line); color:#000; background:#fff; border-radius:12px; padding:10px 14px; cursor:pointer; margin-left:auto; }
-  .sec{ margin-top:16px; border:1px solid var(--line); border-radius:12px; padding:12px; }
-  .label{ color:var(--muted); font-size:12px; margin-bottom:8px; }
-  .grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
-  .grid img{ width:100%; height:110px; object-fit:cover; border-radius:8px; }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>내 프로필</title>
+  <link rel="stylesheet" href="/style.css" />
+  <script src="/js/bootstrap.js"></script>
+  <style>
+    :root { --line: rgba(255,255,255,.14); --muted: rgba(255,255,255,.45); }
+    body { margin:0; background:#000; color:#fff; font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif; }
+    .wrap { max-width:520px; margin:0 auto; padding:18px 18px calc(18px + env(safe-area-inset-bottom)); }
+    .card { border:1px solid var(--line); border-radius:18px; padding:18px; }
+    .row { display:flex; align-items:center; gap:16px; }
+    .avatar { width:84px; height:84px; border-radius:999px; object-fit:cover; border:1px solid var(--line); background:#111; }
+    .nick { font-size:20px; font-weight:700; }
+    .user { font-size:13px; color:var(--muted); }
+    .btn { margin-left:auto; border:1px solid var(--line); border-radius:14px; padding:10px 16px; background:#fff; color:#000; cursor:pointer; }
+    .sec { margin-top:18px; border:1px solid var(--line); border-radius:14px; padding:14px; }
+    .label { font-size:12px; color:var(--muted); margin-bottom:8px; }
+    .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+    .grid img { width:100%; height:120px; object-fit:cover; border-radius:10px; }
+  </style>
 </head>
 <body>
   <div class="wrap">
     <div class="card">
       <div class="row">
-        <img id="avatar" class="avatar" src="/image/avatar-default.png" alt="avatar">
+        <img id="avatar" class="avatar" src="/image/avatar-default.png" alt="avatar" />
         <div>
-          <div id="nickname" class="nick">(닉네임)</div>
+          <div id="nickname" class="nick">(닉네임 없음)</div>
           <div id="username" class="user">@user</div>
         </div>
         <button id="editBtn" class="btn">프로필 편집</button>
@@ -35,11 +36,11 @@
 
       <div class="sec">
         <div class="label">소개</div>
-        <div id="bioText" style="white-space:pre-wrap;"></div>
+        <div id="bioText" style="white-space: pre-wrap;"></div>
       </div>
 
       <div class="sec">
-        <div class="label">내 공개 콘텐츠(미니 갤러리)</div>
+        <div class="label">최근 사진</div>
         <div id="gallery" class="grid"></div>
       </div>
     </div>
