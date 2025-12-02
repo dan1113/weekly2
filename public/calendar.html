@@ -7,13 +7,22 @@
   <link rel="stylesheet" href="/style.css" />
   <script src="/js/bootstrap.js"></script>
   <style>
+    /* ===== 디자인 변경사항 ===== */
+
+    /* 1. CSS 변수 업데이트 */
     :root {
       --bg: #000;
       --fg: #fff;
       --muted: rgba(255,255,255,.45);
-      --line: rgba(255,255,255,.14);
+      --line: rgba(255,255,255,.1);
+      --hover: rgba(255,255,255,.05);
       --tap: 48px;
+      --radius-sm: 12px;
+      --radius-md: 16px;
+      --radius-lg: 20px;
+      --nav-h: 64px;
     }
+
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     body {
       margin: 0;
@@ -23,6 +32,7 @@
       font-family: -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;
       display: flex;
       flex-direction: column;
+      padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
     }
     header {
       position: sticky;
@@ -40,43 +50,62 @@
     }
     .title { font-size: 20px; font-weight: 700; }
     .controls { display: flex; gap: 8px; }
+
+    /* 13. 버튼 디자인 개선 */
     button {
       min-width: var(--tap);
       height: var(--tap);
-      border-radius: 14px;
+      border-radius: var(--radius-sm);
       border: 1px solid var(--line);
       background: transparent;
       color: var(--fg);
-      font-size: 15px;
+      font-size: 14px;
+      font-weight: 500;
       padding: 0 16px;
       cursor: pointer;
+      transition: all 0.2s ease;
     }
-    .primary { background: #fff; color: #000; border-color: #fff; }
-    .full { width: 100%; }
+    button:hover { border-color: rgba(255,255,255,.3); }
+    button:active { transform: scale(0.96); }
     button:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+    .primary { background: var(--fg); color: var(--bg); border-color: var(--fg); font-weight: 600; }
+    .primary:hover { background: rgba(255,255,255,.9); }
+    .full { width: 100%; }
+
     .weekday {
       display: grid;
-      grid-template-columns: repeat(7,1fr);
+      grid-template-columns: repeat(7, 1fr);
       padding: 10px 16px 6px;
       color: var(--muted);
       font-size: 12px;
       text-align: center;
     }
+
+    /* 2. 달력 그리드 - 4px 간격 */
     .grid {
       display: grid;
-      grid-template-columns: repeat(7,1fr);
-      gap: 6px;
-      padding: 8px 16px 20px;
-      padding-bottom: calc(80px + env(safe-area-inset-bottom));
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px 4px;
+      padding: 4px 4px 20px;
+      padding-bottom: calc(20px + env(safe-area-inset-bottom));
+      flex: 1;
     }
+
+    /* 3. 달력 셀 - 4:5 비율 세로 직사각형 */
     .cell {
       position: relative;
-      aspect-ratio: 1/1;
+      aspect-ratio: 4/5;
       border: 1px solid var(--line);
-      border-radius: 14px;
+      border-radius: var(--radius-sm);
       overflow: hidden;
+      cursor: pointer;
+      transition: border-color 0.15s ease;
     }
-    .cell.dim .num { color: var(--muted); }
+    .cell:hover { border-color: rgba(255,255,255,.3); }
+    .cell:active { transform: scale(0.98); }
+    .cell.dim .num { color: var(--muted); opacity: 0.3; }
+
+    /* 4. 썸네일 이미지 */
     .cell .thumb {
       position: absolute;
       inset: 0;
@@ -84,33 +113,168 @@
       height: 100%;
       object-fit: cover;
     }
-    .cell.has-image .num {
-      color: #fff;
-      text-shadow: 0 1px 3px rgba(0,0,0,.8);
-    }
-    .num {
+
+    /* 5. 오버레이 */
+    .cell .overlay {
       position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      font-size: 15px;
+      inset: 0;
+      background: rgba(0,0,0,.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s ease;
+    }
+    .cell:hover .overlay { background: rgba(0,0,0,.4); }
+
+    /* 6. 날짜 숫자 */
+    .num {
+      font-size: 14px;
+      font-weight: 500;
+      pointer-events: none;
+      z-index: 1;
+      position: relative;
+    }
+
+    /* 7. 오늘 날짜 */
+    .cell.today .num {
+      background: var(--fg);
+      color: var(--bg);
+      padding: 4px 8px;
+      border-radius: 8px;
       font-weight: 600;
     }
+
+    /* 8. 이미지 있는 셀 */
+    .cell.has-image .num {
+      color: #fff;
+      text-shadow: 0 2px 8px rgba(0,0,0,.8);
+      font-weight: 600;
+    }
+
+    /* 9. 메모 점 표시 */
     .dot {
       position: absolute;
-      bottom: 10px;
-      right: 10px;
+      bottom: 8px;
+      right: 8px;
       width: 6px;
       height: 6px;
       border-radius: 50%;
-      background: #fff;
-      opacity: .8;
+      background: rgba(255,255,255,.6);
+      z-index: 1;
     }
-    .hit {
-      position: absolute;
+
+    /* 10. Quick Sheet 디자인 개선 */
+    .quick-sheet {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 900;
+      background: #0a0a0a;
+      border-top: 1px solid var(--line);
+      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+      transform: translateY(110%);
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      padding: 20px 20px calc(24px + env(safe-area-inset-bottom));
+      box-shadow: 0 -8px 32px rgba(0,0,0,.6);
+    }
+    .quick-sheet.open { transform: translateY(0); }
+    .quick-sheet .head { display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px; }
+    .quick-sheet textarea {
+      width: 100%;
+      min-height: 140px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.02);
+      color: var(--fg);
+      padding: 14px;
+      resize: vertical;
+      font-family: inherit;
+      font-size: 15px;
+      line-height: 1.6;
+      transition: all 0.2s ease;
+    }
+    .quick-sheet textarea:focus {
+      outline: none;
+      border-color: rgba(255,255,255,.25);
+      background: rgba(255,255,255,.04);
+    }
+    .quick-sheet label {
+      display: block;
+      margin: 12px 0 6px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+    .quick-sheet input[type="file"] {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--fg);
+    }
+
+    /* 15. Preview 이미지 */
+    .quick-preview {
+      margin-top: 12px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+      gap: 8px;
+    }
+    .quick-preview img {
+      width: 100%;
+      height: 90px;
+      object-fit: cover;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--line);
+    }
+
+    /* 12. Viewer Sheet 디자인 개선 */
+    #view-sheet {
+      position: fixed;
       inset: 0;
-      cursor: pointer;
+      background: rgba(0,0,0,.6);
+      display: none;
+      align-items: flex-end;
+      z-index: 850;
     }
+    #view-sheet.open { display: flex; }
+    .viewer-card {
+      width: 100%;
+      max-width: 520px;
+      margin: 0 auto;
+      background: #0f0f0f;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      max-height: 82vh;
+      overflow: auto;
+      box-shadow: 0 16px 64px rgba(0,0,0,.8);
+    }
+    .viewer-section { margin-top: 18px; }
+    .viewer-section h4 { margin: 0 0 8px; font-size: 14px; color: var(--muted); }
+    .viewer-text { white-space: pre-wrap; line-height: 1.5; }
+    .viewer-text.empty { color: var(--muted); }
+
+    /* 16. Viewer 사진 */
+    .viewer-photos {
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      padding: 4px 0;
+      margin: -4px 0;
+      -webkit-overflow-scrolling: touch;
+    }
+    .viewer-photos::-webkit-scrollbar { display: none; }
+    .viewer-photos img {
+      width: 240px;
+      height: 240px;
+      object-fit: cover;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--line);
+      flex-shrink: 0;
+    }
+
     .footer {
       margin-top: auto;
       border-top: 1px solid var(--line);
@@ -124,93 +288,6 @@
       border: 1px solid var(--line);
       border-radius: 999px;
       padding: 8px 14px;
-    }
-    /* Quick diary sheet */
-    .quick-sheet {
-      position: fixed;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      z-index: 900;
-      background: #050505;
-      border-top: 1px solid var(--line);
-      border-radius: 20px 20px 0 0;
-      transform: translateY(110%);
-      transition: transform .25s ease;
-      padding: 18px 16px calc(24px + var(--nav-h) + env(safe-area-inset-bottom));
-    }
-    .quick-sheet.open { transform: translateY(0); }
-    .quick-sheet .head { display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px; }
-    .quick-sheet textarea {
-      width: 100%;
-      min-height: 120px;
-      border-radius: 14px;
-      border: 1px solid var(--line);
-      background: transparent;
-      color: var(--fg);
-      padding: 12px;
-      resize: vertical;
-      font-family: inherit;
-    }
-    .quick-sheet label {
-      display: block;
-      margin: 12px 0 6px;
-      font-size: 14px;
-      color: var(--muted);
-    }
-    .quick-sheet input[type="file"] {
-      width: 100%;
-      padding: 8px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      background: transparent;
-      color: var(--fg);
-    }
-    .quick-preview {
-      margin-top: 10px;
-      display: grid;
-      grid-template-columns: repeat(3,1fr);
-      gap: 6px;
-    }
-    .quick-preview img {
-      width: 100%;
-      height: 90px;
-      object-fit: cover;
-      border-radius: 8px;
-    }
-    /* Detail viewer */
-    #view-sheet {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,.6);
-      display: none;
-      align-items: flex-end;
-      z-index: 850;
-    }
-    #view-sheet.open { display: flex; }
-    .viewer-card {
-      width: min(520px, 100%);
-      margin: 0 auto;
-      background: #111;
-      border-radius: 20px 20px 0 0;
-      padding: 20px;
-      max-height: 88vh;
-      overflow: auto;
-    }
-    .viewer-section { margin-top: 18px; }
-    .viewer-section h4 { margin: 0 0 8px; font-size: 14px; color: var(--muted); }
-    .viewer-text { white-space: pre-wrap; line-height: 1.5; }
-    .viewer-text.empty { color: var(--muted); }
-    .viewer-photos {
-      display: flex;
-      gap: 8px;
-      overflow-x: auto;
-    }
-    .viewer-photos img {
-      width: 220px;
-      height: 220px;
-      object-fit: cover;
-      border-radius: 12px;
     }
   </style>
 </head>
