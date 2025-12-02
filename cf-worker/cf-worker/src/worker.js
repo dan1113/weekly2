@@ -1,5 +1,5 @@
 ﻿// src/worker.js
-// Weekly Diary – Cloudflare Worker (D1 + CSRF + Auth + Avatar + Diary/Schedule + R2 diary photo)
+// Weekly Diary – Cloudflare Worker (D1 + CSRF + Auth + Avatar + Diary/Schedule)
 
 const COOKIE_NAME = 'auth_session';
 const SESSION_TTL = 7 * 24 * 60 * 60; // seconds
@@ -43,89 +43,6 @@ async function sha256Hex(msg) {
   return [...new Uint8Array(hash)].map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-function mimeToExt(m) {
-  const map = {
-    'image/jpeg': 'jpg',
-    'image/png': 'png',
-    'image/webp': 'webp',
-    'image/avif': 'avif',
-    'image/gif': 'gif'
-  };
-  return map[m] || '';
-}
-
-function toHex(buffer) {
-  return [...new Uint8Array(buffer)].map(b => b.toString(16).padStart(2, '0')).join('');
-}
-async function hmac(keyRaw, msg) {
-  const keyBytes = (keyRaw instanceof ArrayBuffer || ArrayBuffer.isView(keyRaw))
-    ? keyRaw
-    : new TextEncoder().encode(String(keyRaw));
-  const cryptoKey = await crypto.subtle.importKey(
-    'raw', keyBytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
-  );
-  return crypto.subtle.sign('HMAC', cryptoKey, new TextEncoder().encode(msg));
-}
-async function getSignatureKey(secretKey, dateStamp, region, service) {
-  const kDate = await hmac('AWS4' + secretKey, dateStamp);
-  const kRegion = await hmac(kDate, region);
-  const kService = await hmac(kRegion, service);
-  const kSigning = await hmac(kService, 'aws4_request');
-  return kSigning;
-}
-function uriEncodePath(path) {
-  return path.split('/').map(encodeURIComponent).join('/');
-}
-async function signPutUrl({ accountId, bucket, key, contentType = 'application/octet-stream', accessKeyId, secretAccessKey, expires = 120 }) {
-  if (!accountId || !bucket || !key || !accessKeyId || !secretAccessKey) {
-    throw new Error('R2 signing requires accountId, bucket, key, accessKeyId, secretAccessKey');
-  }
-  const now = new Date();
-  const amzDate = now.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z'); // YYYYMMDDTHHMMSSZ
-  const dateStamp = amzDate.slice(0, 8);
-  const service = 's3';
-  const region = 'auto';
-  const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`;
-  const host = `${accountId}.r2.cloudflarestorage.com`;
-  const canonicalUri = `/${bucket}/${uriEncodePath(key)}`;
-  const signedHeaders = 'host';
-
-  const params = new URLSearchParams();
-  params.set('X-Amz-Algorithm', 'AWS4-HMAC-SHA256');
-  params.set('X-Amz-Credential', `${accessKeyId}/${credentialScope}`);
-  params.set('X-Amz-Date', amzDate);
-  params.set('X-Amz-Expires', String(expires));
-  params.set('X-Amz-SignedHeaders', signedHeaders);
-
-  const canonicalQueryString = params.toString();
-  const canonicalHeaders = `host:${host}\n`;
-  const payloadHash = 'UNSIGNED-PAYLOAD';
-  const canonicalRequest = [
-    'PUT',
-    canonicalUri,
-    canonicalQueryString,
-    canonicalHeaders,
-    signedHeaders,
-    payloadHash
-  ].join('\n');
-
-  const crHash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonicalRequest));
-  const stringToSign = [
-    'AWS4-HMAC-SHA256',
-    amzDate,
-    credentialScope,
-    toHex(crHash)
-  ].join('\n');
-
-  const signingKey = await getSignatureKey(secretAccessKey, dateStamp, region, service);
-  const sigBuf = await hmac(signingKey, stringToSign);
-  const signature = toHex(sigBuf);
-
-  const url = new URL(`https://${host}${canonicalUri}`);
-  for (const [k, v] of params) url.searchParams.set(k, v);
-  url.searchParams.set('X-Amz-Signature', signature);
-  return url.toString();
-}
 function generateCsrfToken() {
   const buf = new Uint8Array(32);
   crypto.getRandomValues(buf);
@@ -146,6 +63,17 @@ function validateCsrfToken(request) {
 function ymd(d) {
   const pad = n => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+const MAX_FILES_PER_DAY = 5;
+const MAX_BASE64_LENGTH = 7 * 1024 * 1024; // roughly 5MB raw
+function isValidDateStr(str = '') {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(str));
+}
+function base64Bytes(b64 = '') {
+  const body = (b64 || '').split(',').pop() || '';
+  const padding = body.endsWith('==') ? 2 : body.endsWith('=') ? 1 : 0;
+  return Math.floor(body.length * 3 / 4) - padding;
 }
 
 // =============== D1 helpers & schema ===============
@@ -204,21 +132,30 @@ async function ensureSchema(env) {
     // add-on columns (idempotent)
     await DB.prepare(`ALTER TABLE users ADD COLUMN avatar_url TEXT`).run().catch(() => {});
     await DB.prepare(`ALTER TABLE users ADD COLUMN bio TEXT`).run().catch(() => {});
-    // images table for calendar photos
-    await DB.prepare(`CREATE TABLE IF NOT EXISTS images (
+    // base64 diary storage
+    await DB.prepare(`CREATE TABLE IF NOT EXISTS diary_daily_entries (
+      user_id TEXT NOT NULL,
+      date TEXT NOT NULL,
+      text TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY(user_id, date)
+    )`).run();
+    await DB.prepare(`CREATE TABLE IF NOT EXISTS diary_photos (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
-      calendar_date TEXT NOT NULL,
-      key TEXT NOT NULL UNIQUE,
-      mime TEXT NOT NULL,
-      bytes INTEGER NOT NULL,
-      width INTEGER NULL,
-      height INTEGER NULL,
+      date TEXT NOT NULL,
+      filename TEXT,
+      base64_data TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
       order_index INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL
     )`).run();
-    await DB.prepare(`CREATE INDEX IF NOT EXISTS idx_images_user_date ON images(user_id, calendar_date)`).run();
-    await DB.prepare(`CREATE INDEX IF NOT EXISTS idx_images_date ON images(calendar_date)`).run();
+    await DB.prepare(`CREATE INDEX IF NOT EXISTS idx_diary_photos_user_date ON diary_photos(user_id, date, order_index)`).run();
+    await DB.prepare(`ALTER TABLE diary_photos ADD COLUMN base64_data TEXT`).run().catch(() => {});
+    await DB.prepare(`ALTER TABLE diary_photos ADD COLUMN mime_type TEXT`).run().catch(() => {});
+    await DB.prepare(`ALTER TABLE diary_photos ADD COLUMN filename TEXT`).run().catch(() => {});
+    await DB.prepare(`ALTER TABLE diary_photos ADD COLUMN order_index INTEGER NOT NULL DEFAULT 0`).run().catch(() => {});
   } catch (e) {
     console.error('SCHEMA_SETUP_CRITICAL_FAIL:', e?.message || e);
     throw new Error(`CRITICAL D1 ERROR during schema setup: ${e.message || e}`);
@@ -372,7 +309,7 @@ async function handleSession(request, env) {
   }
 }
 
-// =============== Profile Avatar (R2) ===============
+// =============== Profile Avatar (base64 store) ===============
 async function handleProfileAvatar(request, env, userId) {
   const corsH = buildCorsHeaders(request.headers.get('Origin'));
   await ensureSchema(env);
@@ -383,24 +320,16 @@ async function handleProfileAvatar(request, env, userId) {
   if (ctype.includes('application/json')) {
     const { url, key } = await request.json().catch(() => ({}));
     if (url) finalUrl = url;
-    if (!finalUrl && key) {
-      const base = env.R2_PUBLIC_URL || '';
-      finalUrl = base ? `${base.replace(/\/$/,'')}/${key}` : key;
-    }
+    if (!finalUrl && key) finalUrl = key;
   } else if (ctype.includes('multipart/form-data')) {
     const form = await request.formData();
     const file = form.get('file');
     if (!file || typeof file.arrayBuffer !== 'function') {
       return new Response(JSON.stringify({ error: 'file not provided' }), { status: 400, headers: corsH });
     }
-    if (!env.R2) {
-      return new Response(JSON.stringify({ error: 'R2 not bound' }), { status: 500, headers: corsH });
-    }
     const ab = await file.arrayBuffer();
-    const key = `uploads/${userId}/avatar/${crypto.randomUUID()}.jpg`;
-    await env.R2.put(key, ab, { httpMetadata: { contentType: file.type || 'image/jpeg' } });
-    const base = env.R2_PUBLIC_URL || '';
-    finalUrl = base ? `${base.replace(/\/$/,'')}/${key}` : key;
+    const b64 = btoa(String.fromCharCode(...new Uint8Array(ab)));
+    finalUrl = `data:${file.type || 'image/jpeg'};base64,${b64}`;
   }
 
   if (!finalUrl) {
@@ -552,6 +481,98 @@ async function handleGetSchedulesByDay(request, env, userId, dateStr) {
   return new Response(JSON.stringify({ items: items.results || [] }), { status: 200, headers: corsH });
 }
 
+// =============== Diary (Base64) ===============
+async function upsertDiaryText(env, userId, dateStr, text) {
+  const nowIso = new Date().toISOString();
+  await env.DB.prepare(`
+    INSERT INTO diary_daily_entries (user_id, date, text, created_at, updated_at)
+    VALUES (?1, ?2, ?3, ?4, ?4)
+    ON CONFLICT(user_id, date) DO UPDATE SET text = excluded.text, updated_at = excluded.updated_at
+  `).bind(userId, dateStr, text, nowIso).run();
+}
+
+async function handleUploadBase64Diary(request, env, userId) {
+  const corsH = buildCorsHeaders(request.headers.get('Origin'), env);
+  await ensureSchema(env);
+  const body = await request.json().catch(() => null);
+  if (!body) return new Response(JSON.stringify({ error: 'BAD_JSON' }), { status: 400, headers: corsH });
+  const { date, files = [], text = '' } = body;
+  if (!isValidDateStr(date)) {
+    return new Response(JSON.stringify({ error: 'BAD_DATE', message: 'YYYY-MM-DD required' }), { status: 400, headers: corsH });
+  }
+  if (!Array.isArray(files)) {
+    return new Response(JSON.stringify({ error: 'FILES_REQUIRED' }), { status: 400, headers: corsH });
+  }
+  if (files.length > MAX_FILES_PER_DAY) {
+    return new Response(JSON.stringify({ error: 'MAX_FILES_EXCEEDED', message: `최대 ${MAX_FILES_PER_DAY}장 업로드 가능` }), { status: 400, headers: corsH });
+  }
+  for (const f of files) {
+    if (!f?.base64 || !f?.mime) {
+      return new Response(JSON.stringify({ error: 'FILE_INVALID', message: 'base64/mime required' }), { status: 400, headers: corsH });
+    }
+    const approxBytes = base64Bytes(f.base64);
+    if (f.base64.length > MAX_BASE64_LENGTH || approxBytes > 5 * 1024 * 1024) {
+      return new Response(JSON.stringify({ error: 'FILE_TOO_LARGE', message: '5MB 초과 파일 존재' }), { status: 400, headers: corsH });
+    }
+  }
+
+  await env.DB.prepare(`DELETE FROM diary_photos WHERE user_id = ? AND date = ?`).bind(userId, date).run();
+
+  const now = new Date().toISOString();
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    await env.DB.prepare(`
+      INSERT INTO diary_photos (id, user_id, date, filename, base64_data, mime_type, order_index, created_at)
+      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+    `).bind(
+      crypto.randomUUID(),
+      userId,
+      date,
+      f.filename || null,
+      f.base64,
+      f.mime,
+      Number(f.order ?? i) || 0,
+      now
+    ).run();
+  }
+
+  if (text && String(text).trim()) {
+    await upsertDiaryText(env, userId, date, String(text));
+  }
+
+  return new Response(JSON.stringify({ ok: true, count: files.length }), { status: 200, headers: corsH });
+}
+
+async function handleGetDiaryDayFull(request, env, userId, dateStr) {
+  const corsH = buildCorsHeaders(request.headers.get('Origin'), env);
+  if (!isValidDateStr(dateStr)) {
+    return new Response(JSON.stringify({ error: 'BAD_DATE' }), { status: 400, headers: corsH });
+  }
+  await ensureSchema(env);
+  const entry = await env.DB.prepare(`SELECT user_id, date, text, updated_at FROM diary_daily_entries WHERE user_id = ? AND date = ?`)
+    .bind(userId, dateStr)
+    .first()
+    .catch(() => null);
+  const photos = await env.DB.prepare(`
+    SELECT id, filename, base64_data, mime_type, order_index
+    FROM diary_photos
+    WHERE user_id = ? AND date = ?
+    ORDER BY order_index ASC
+  `).bind(userId, dateStr).all();
+  return new Response(JSON.stringify({ entry: entry || null, photos: photos.results || [] }), { status: 200, headers: corsH });
+}
+
+async function handleDeleteDiaryDay(request, env, userId, dateStr) {
+  const corsH = buildCorsHeaders(request.headers.get('Origin'), env);
+  if (!isValidDateStr(dateStr)) {
+    return new Response(JSON.stringify({ error: 'BAD_DATE' }), { status: 400, headers: corsH });
+  }
+  await ensureSchema(env);
+  await env.DB.prepare(`DELETE FROM diary_photos WHERE user_id = ? AND date = ?`).bind(userId, dateStr).run();
+  await env.DB.prepare(`DELETE FROM diary_daily_entries WHERE user_id = ? AND date = ?`).bind(userId, dateStr).run();
+  return new Response(JSON.stringify({ ok: true }), { status: 200, headers: corsH });
+}
+
 // =============== Calendar Overview (minimal) ===============
 async function handleCalendarOverview(request, env, userId, y, m) {
   const corsH = buildCorsHeaders(request.headers.get('Origin'), env);
@@ -567,9 +588,19 @@ async function handleCalendarOverview(request, env, userId, y, m) {
                 FROM schedules WHERE user_id = ? AND start_at LIKE ? 
                 GROUP BY substr(start_at,1,10)`)
       .bind(userId, `${startPrefix}%`).all(), env);
+  const thumbRows = await env.DB.prepare(`
+    SELECT date, base64_data
+    FROM diary_photos
+    WHERE user_id = ? AND date LIKE ?
+    AND order_index = (
+      SELECT MIN(order_index) FROM diary_photos p2 WHERE p2.user_id = diary_photos.user_id AND p2.date = diary_photos.date
+    )
+  `).bind(userId, `${startPrefix}%`).all();
 
   const map = new Map();
   (rows.results || []).forEach(r => { map.set(r.date, r.cnt); });
+  const thumbMap = new Map();
+  (thumbRows.results || []).forEach(r => thumbMap.set(r.date, r.base64_data));
 
   const days = [];
   for (let d = new Date(first); d <= last; d.setDate(d.getDate() + 1)) {
@@ -577,41 +608,10 @@ async function handleCalendarOverview(request, env, userId, y, m) {
     days.push({
       date,
       scheduleCount: map.get(date) || 0,
-      diaryThumb: null, // photo system TBD
+      diaryThumb: thumbMap.get(date) || null,
     });
   }
   return new Response(JSON.stringify({ days }), { status: 200, headers: corsH });
-}
-
-// =============== Diary Photo Upload (R2) ===============
-async function handleDiaryPhotoUpload(request, env, userId) {
-  const corsH = buildCorsHeaders(request.headers.get('Origin'), env);
-
-  if (!env.R2) {
-    return new Response(JSON.stringify({ error: 'R2 not bound' }), { status: 500, headers: corsH });
-  }
-
-  const ctype = request.headers.get('Content-Type') || '';
-  if (!ctype.includes('multipart/form-data')) {
-    return new Response(JSON.stringify({ error: 'multipart/form-data required' }), { status: 400, headers: corsH });
-  }
-
-  const form = await request.formData();
-  const file = form.get('file');
-  if (!file || typeof file.arrayBuffer !== 'function') {
-    return new Response(JSON.stringify({ error: 'file not provided' }), { status: 400, headers: corsH });
-  }
-
-  const date = (form.get('date') || '').toString().slice(0, 10); // "YYYY-MM-DD"
-  const key = `uploads/${userId}/diary/${date || 'nodate'}/${crypto.randomUUID()}`;
-
-  const ab = await file.arrayBuffer();
-  await env.R2.put(key, ab, { httpMetadata: { contentType: file.type || 'image/jpeg' } });
-
-  const base = env.R2_PUBLIC_URL || '';
-  const url = base ? `${base.replace(/\/$/,'')}/${key}` : key;
-
-  return new Response(JSON.stringify({ ok: true, key, url }), { status: 200, headers: corsH });
 }
 
 // =============== Admin / Debug ===============
@@ -621,6 +621,8 @@ async function handleResetDb(request, env) {
     const DB = env.DB;
     if (!DB) throw new Error('D1_NOT_BOUND: DB binding missing');
     await DB.prepare('DROP TABLE IF EXISTS schedules').run();
+    await DB.prepare('DROP TABLE IF EXISTS diary_photos').run();
+    await DB.prepare('DROP TABLE IF EXISTS diary_daily_entries').run();
     await DB.prepare('DROP TABLE IF EXISTS diary_entries').run();
     await DB.prepare('DROP TABLE IF EXISTS sessions').run();
     await DB.prepare('DROP TABLE IF EXISTS users').run();
@@ -677,99 +679,11 @@ async function handleRequest(request, env) {
     }
   }
 
-  // ===== Upload: presign batch (R2 direct) =====
-  if (path === '/api/upload/presign-batch' && method === 'POST') {
-    const originH = buildCorsHeaders(request.headers.get('Origin'));
-    try {
-      await ensureSchema(env);
-      if (!env.R2) return withCors(new Response(JSON.stringify({ error: 'R2_NOT_BOUND', message: 'R2 binding missing' }), { status: 500, headers: originH }), request, env);
-      const body = await request.json().catch(()=>null);
-      if (!body) return withCors(new Response(JSON.stringify({ error: 'BAD_JSON', message: 'invalid json' }), { status: 400, headers: originH }), request, env);
-      const { count, items = [], calendarDate } = body;
-      const userId = await authenticate(request, env);
-      if (!userId) return withCors(new Response(JSON.stringify({ error: 'AUTH_REQUIRED', message: 'login required' }), { status: 401, headers: originH }), request, env);
-      // basic validation
-      const yyyyMmDd = String(calendarDate || '').match(/^\d{4}-\d{2}-\d{2}$/) ? calendarDate : null;
-      if (!yyyyMmDd) return withCors(new Response(JSON.stringify({ error: 'BAD_DATE', message: 'calendarDate required (YYYY-MM-DD)' }), { status: 400, headers: originH }), request, env);
-      const allow = (env.ALLOWED_MIME || 'image/jpeg,image/png,image/webp,image/avif,image/gif').split(',').map(s=>s.trim());
-      const MAX = 4 * 1024 * 1024;
-      const accountId = env.CF_ACCOUNT_ID;
-      const bucket = env.R2_BUCKET;
-      const accessKeyId = env.R2_ACCESS_KEY_ID;
-      const secretAccessKey = env.R2_SECRET_ACCESS_KEY;
-      const results = [];
-      const pad = n=>String(n).padStart(2,'0');
-      const [y,m,d] = yyyyMmDd.split('-');
-      for (const it of items.slice(0, Number(count||items.length))) {
-        const mime = it?.mime;
-        const bytes = Number(it?.bytes||0);
-        if (!allow.includes(mime)) return withCors(new Response(JSON.stringify({ error:'MIME_NOT_ALLOWED', message:mime }), { status:400, headers: originH }), request, env);
-        if (!(bytes>0 && bytes<=MAX)) return withCors(new Response(JSON.stringify({ error:'FILE_TOO_LARGE', message:String(bytes) }), { status:400, headers: originH }), request, env);
-        const ext = (it?.ext || mimeToExt(mime) || 'bin').replace(/[^a-z0-9]/ig,'');
-        const key = `u/${userId}/d/${y}/${m}/${d}/${crypto.randomUUID()}.${ext}`;
-        const uploadUrl = await signPutUrl({ accountId, bucket, key, contentType: mime, accessKeyId, secretAccessKey, expires:120 });
-        const cdn = env.R2_PUBLIC_URL ? `${env.R2_PUBLIC_URL}/${key}` : `https://${bucket}.r2.cloudflarestorage.com/${key}`;
-        results.push({ key, uploadUrl, headers:{}, maxBytes: MAX, cdnUrl: cdn });
-      }
-      return withCors(new Response(JSON.stringify({ ok:true, items: results }), { status: 200, headers: originH }), request, env);
-    } catch (e) {
-      return withCors(new Response(JSON.stringify({ error:'PRESIGN_FAILED', message: e?.message }), { status:500, headers: originH }), request, env);
-    }
-  }
-
-  // ===== Upload: complete metadata save =====
-  if (path === '/api/upload/complete' && method === 'POST') {
-    const originH = buildCorsHeaders(request.headers.get('Origin'));
-    try {
-      await ensureSchema(env);
-      const userId = await authenticate(request, env);
-      if (!userId) return withCors(new Response(JSON.stringify({ error:'AUTH_REQUIRED', message:'login required' }), { status:401, headers: originH }), request, env);
-      const body = await request.json().catch(()=>null);
-      if (!body) return withCors(new Response(JSON.stringify({ error:'BAD_JSON' }), { status:400, headers: originH }), request, env);
-      const { calendarDate, files=[] } = body;
-      const yyyyMmDd = String(calendarDate||'').match(/^\d{4}-\d{2}-\d{2}$/) ? calendarDate : null;
-      if (!yyyyMmDd) return withCors(new Response(JSON.stringify({ error:'BAD_DATE', message:'YYYY-MM-DD' }), { status:400, headers: originH }), request, env);
-      const nowIso = new Date().toISOString();
-      const rows = [];
-      for (const f of files) {
-        const id = crypto.randomUUID();
-        await env.DB.prepare(`INSERT INTO images (id,user_id,calendar_date,key,mime,bytes,width,height,order_index,created_at) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)`) 
-          .bind(id, userId, yyyyMmDd, f.key, String(f.mime||''), Number(f.bytes||0), Number(f.width||0)||null, Number(f.height||0)||null, Number(f.order||0)||0, nowIso)
-          .run();
-        rows.push({ id, key:f.key, calendar_date: yyyyMmDd });
-      }
-      return withCors(new Response(JSON.stringify({ ok:true, items: rows }), { status:200, headers: originH }), request, env);
-    } catch(e) {
-      return withCors(new Response(JSON.stringify({ error:'DB_WRITE_FAILED', message:e?.message }), { status:500, headers: originH }), request, env);
-    }
-  }
-
-  // ===== Calendar images list =====
-  if (path === '/api/calendar/images' && method === 'GET') {
-    const originH = buildCorsHeaders(request.headers.get('Origin'));
+  // ===== Diary: Base64 upload =====
+  if (path === '/api/diary/upload-base64' && method === 'POST') {
     const userId = await authenticate(request, env);
-    if (!userId) return withCors(new Response(JSON.stringify({ items: [] }), { status:200, headers:originH }), request, env);
-    const dateStr = new URL(request.url).searchParams.get('date');
-    if (!dateStr) return withCors(new Response(JSON.stringify({ items: [] }), { status:200, headers:originH }), request, env);
-    const rs = await env.DB.prepare(`SELECT id,key,mime,bytes,width,height,order_index FROM images WHERE user_id=?1 AND calendar_date=?2 ORDER BY order_index`).bind(userId, dateStr).all();
-    const items = (rs.results||[]).map(r=>({ id:r.id, key:r.key, url: (env.R2_PUBLIC_URL? `${env.R2_PUBLIC_URL}/${r.key}`:`https://${env.R2_BUCKET}.r2.cloudflarestorage.com/${r.key}`), mime:r.mime, bytes:r.bytes, width:r.width, height:r.height, order:r.order_index }));
-    return withCors(new Response(JSON.stringify({ items }), { status:200, headers:originH }), request, env);
-  }
-
-  // ===== Recent images for gallery =====
-  if (path === '/api/images/recent' && method === 'GET') {
-    const originH = buildCorsHeaders(request.headers.get('Origin'));
-    const uid = await authenticate(request, env);
-    if (!uid) return withCors(new Response(JSON.stringify({ items: [] }), { status: 200, headers: originH }), request, env);
-    const limit = Math.max(1, Math.min(200, Number(new URL(request.url).searchParams.get('limit') || 60)));
-    await ensureSchema(env);
-    const rs = await env.DB.prepare(`SELECT key, calendar_date, created_at FROM images WHERE user_id=?1 ORDER BY datetime(created_at) DESC LIMIT ?2`).bind(uid, limit).all();
-    const items = (rs.results||[]).map(r=>({
-      key: r.key,
-      date: r.calendar_date,
-      image_url: (env.R2_PUBLIC_URL? `${env.R2_PUBLIC_URL}/${r.key}`:`https://${env.R2_BUCKET}.r2.cloudflarestorage.com/${r.key}`)
-    }));
-    return withCors(new Response(JSON.stringify({ items }), { status: 200, headers: originH }), request, env);
+    if (!userId) return withCors(new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 }), request, env);
+    return withCors(await handleUploadBase64Diary(request, env, userId), request, env);
   }
 
   // Auth (public)
@@ -833,9 +747,14 @@ async function handleRequest(request, env) {
 
   // Day queries used by UI
   if (path.startsWith('/api/diary/day/') && method === 'GET') {
-    const corsH = buildCorsHeaders(request.headers.get('Origin'), env);
-    // Not storing photos yet → always empty
-    return withCors(new Response(JSON.stringify({ entry: null, photos: [] }), { status: 200, headers: corsH }), request, env);
+    if (!userId) return withCors(new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 }), request, env);
+    const dateStr = path.split('/').pop();
+    return withCors(await handleGetDiaryDayFull(request, env, userId, dateStr), request, env);
+  }
+  if (path.startsWith('/api/diary/day/') && method === 'DELETE') {
+    if (!userId) return withCors(new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 }), request, env);
+    const dateStr = path.split('/').pop();
+    return withCors(await handleDeleteDiaryDay(request, env, userId, dateStr), request, env);
   }
   if (path.startsWith('/api/schedules/day/') && method === 'GET') {
     if (!userId) return withCors(new Response(JSON.stringify({ items: [] }), { status: 200 }), request, env);
@@ -847,12 +766,6 @@ async function handleRequest(request, env) {
   if (path === '/api/schedules' && method === 'POST') {
     if (!userId) return withCors(new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 }), request, env);
     return withCors(await handleCreateSchedule(request, env, userId), request, env);
-  }
-
-  // Diary photo upload (R2)
-  if (path === '/api/diary/photo' && method === 'POST') {
-    if (!userId) return withCors(new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 }), request, env);
-    return withCors(await handleDiaryPhotoUpload(request, env, userId), request, env);
   }
 
   // Diary CRUD (list/create/get/update/delete)
@@ -867,26 +780,6 @@ async function handleRequest(request, env) {
       if (method === 'GET')    return withCors(await handleGetDiaryEntry(request, env, userId, entryId), request, env);
       if (method === 'PUT')    return withCors(await handleUpdateDiaryEntry(request, env, userId, entryId), request, env);
       if (method === 'DELETE') return withCors(await handleDeleteDiaryEntry(request, env, userId, entryId), request, env);
-    }
-  }
-
-  // ===== R2 예시: 객체 읽기(프록시) =====
-  // 주의: 현재 발생 중인 R2 CORS 오류는 워커 코드 문제가 아니라 R2 버킷의 CORS 설정이 없거나,
-  // 프론트엔드가 R2에 직접 PUT/GET을 시도한 경우에 발생합니다. (브라우저는 워커와 다른 기원을 R2로 간주)
-  // 필요 시, 아래와 같은 프록시 엔드포인트로 R2 접근을 우회할 수 있습니다.
-  if (path === '/api/r2/object' && method === 'GET') {
-    const corsH = buildCorsHeaders(request.headers.get('Origin'));
-    try {
-      if (!env.R2) return withCors(new Response(JSON.stringify({ error: 'R2_NOT_BOUND' }), { status: 500, headers: corsH }), request, env);
-      const key = new URL(request.url).searchParams.get('key');
-      if (!key) return withCors(new Response(JSON.stringify({ error: 'BAD_REQUEST' }), { status: 400, headers: corsH }), request, env);
-      const obj = await env.R2.get(key);
-      if (!obj) return withCors(new Response('Not Found', { status: 404, headers: corsH }), request, env);
-      const headers = new Headers(corsH);
-      if (obj.httpMetadata?.contentType) headers.set('Content-Type', obj.httpMetadata.contentType);
-      return new Response(obj.body, { status: 200, headers });
-    } catch (e) {
-      return withCors(new Response(JSON.stringify({ error: 'R2_READ_FAILED', message: e?.message }), { status: 500, headers: corsH }), request, env);
     }
   }
 
