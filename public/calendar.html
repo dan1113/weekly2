@@ -63,6 +63,7 @@
     .controls { 
       display: flex; 
       gap: 8px; 
+      align-items: center;
     }
     
     /* ===== Weekday ===== */
@@ -183,13 +184,61 @@
       cursor: pointer;
       transition: all 0.2s ease;
     }
-    
+
     button:hover {
       border-color: rgba(255,255,255,.3);
     }
     
     button:active {
       transform: scale(0.96);
+    }
+
+    /* 화살표 버튼 - 원형 스타일 */
+    #prevBtn,
+    #nextBtn {
+      min-width: 36px;
+      width: 36px;
+      height: 36px;
+      padding: 0;
+      border: none;
+      background: rgba(255,255,255,.08);
+      border-radius: 50%;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #prevBtn:hover,
+    #nextBtn:hover {
+      background: rgba(255,255,255,.15);
+    }
+
+    #prevBtn:active,
+    #nextBtn:active {
+      transform: scale(0.92);
+    }
+
+    /* 오늘 버튼 - Pill 스타일 */
+    #todayBtn {
+      min-width: auto;
+      height: 32px;
+      padding: 0 16px;
+      border: none;
+      background: var(--fg);
+      color: var(--bg);
+      border-radius: 16px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+
+    #todayBtn:hover {
+      background: rgba(255,255,255,.9);
+    }
+
+    #todayBtn:active {
+      transform: scale(0.95);
     }
     
     .primary { 
@@ -479,7 +528,7 @@
 <body>
   <header>
     <div class="header-inner">
-      <div class="title">Weekly</div>
+      <div class="title">-</div>
       <div class="controls">
         <button id="prevBtn" aria-label="이전 달">이전</button>
         <button id="todayBtn">오늘</button>
@@ -493,13 +542,7 @@
 
   <main class="grid" id="calendarGrid" role="grid" aria-labelledby="monthLabel"></main>
 
-  <footer class="footer">
-    <div>
-      <div class="pill" id="monthLabel">2025년 11월</div>
-      <div id="todayText"></div>
-    </div>
-    <div id="selectedInfo"></div>
-  </footer>
+
 
   <div class="quick-sheet" id="quickSheet" aria-hidden="true">
     <div class="head">
