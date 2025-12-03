@@ -1,4 +1,4 @@
-﻿import { API_BASE, AUTH_HEADERS, apiFetch } from "./config.js";
+﻿import { API_BASE, AUTH_HEADERS, apiFetch, ensureCsrfToken } from "./config.js";
 
 // ===== Constants =====
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -29,6 +29,7 @@ if (todayText) todayText.textContent = fmt(today);
 const overviewCache = new Map();
 const overviewKey = (year, month) => `${year}-${pad(month)}`;
 let qSelectedFiles = [];
+let qPhotosLocked = false;
 
 // ===== File Validation =====
 function validateFiles(files) {
@@ -150,6 +151,7 @@ function invalidateOverview(dateStr) {
 
 // ===== Upload Base64 Images =====
 async function uploadBase64Images(dateStr, files) {
+  await ensureCsrfToken();
   const prepared = await Promise.all(files.map((f) => prepareImageForUpload(f)));
   const base64Files = await Promise.all(
     prepared.map(async (file, index) => {
@@ -180,7 +182,17 @@ async function uploadBase64Images(dateStr, files) {
 }
 
 // ===== Calendar Render =====
-async function render() {
+function playSlideAnimation(direction) {
+  if (!grid || !direction) return;
+  const cls = direction === "next" ? "slide-from-right" : "slide-from-left";
+  grid.classList.remove("slide-from-right", "slide-from-left");
+  // force reflow
+  void grid.offsetWidth;
+  grid.classList.add(cls);
+  setTimeout(() => grid.classList.remove(cls), 300);
+}
+
+async function render(direction) {
   if (!grid) return;
   const y = viewDate.getFullYear();
   const m = viewDate.getMonth() + 1;
@@ -248,6 +260,7 @@ async function render() {
   }
 
   updateSelectedInfo();
+  playSlideAnimation(direction);
 }
 
 function updateSelectedInfo() {
@@ -263,16 +276,28 @@ const qPreview = document.getElementById("qPreview");
 const qNote = document.getElementById("qNote");
 const qSave = document.getElementById("qSave");
 const qClose = document.getElementById("qClose");
+const uploadTrigger = document.getElementById("uploadTrigger");
 let qCurrentDateStr = null;
+let viewSheetDateStr = null;
 
-function openQuickDiary(dateStr) {
+function openQuickDiary(dateStr, options = {}) {
+  const { lockPhotos = false, noteText = "" } = options;
   qCurrentDateStr = dateStr;
   qSelectedFiles = [];
+  qPhotosLocked = lockPhotos;
   if (qDateEl) qDateEl.textContent = dateStr;
-  if (qNote) qNote.value = "";
-  if (qFiles) qFiles.value = "";
+  if (qNote) qNote.value = noteText || "";
+  if (qFiles) {
+    qFiles.value = "";
+    qFiles.disabled = false;
+    if (lockPhotos) qFiles.disabled = true;
+  }
   if (qPreview) qPreview.innerHTML = "";
-  if (qSheet) qSheet.setAttribute("aria-hidden", "false");
+  if (qSheet) {
+    qSheet.classList.remove("photos-locked");
+    if (lockPhotos) qSheet.classList.add("photos-locked");
+  }
+  
   qSheet.classList.add("open");
   
   fetchDiaryDay(dateStr)
@@ -287,7 +312,13 @@ function openQuickDiary(dateStr) {
 function closeQuickDiary() {
   qSheet.classList.remove("open");
   qCurrentDateStr = null;
-  if (qSheet) qSheet.setAttribute("aria-hidden", "true");
+  if (qFiles) qFiles.blur();
+  if (qNote) qNote.blur();
+  qPhotosLocked = false;
+  if (qSheet) qSheet.classList.remove("photos-locked");
+  
+  qSheet.classList.remove("open");
+  qCurrentDateStr = null;
 }
 
 if (qClose) qClose.addEventListener("click", closeQuickDiary);
@@ -296,13 +327,14 @@ if (qClose) qClose.addEventListener("click", closeQuickDiary);
 if (qFiles) {
   qFiles.addEventListener("change", () => {
     if (!qPreview) return;
+    if (qPhotosLocked) return;
     qPreview.innerHTML = "";
     qSelectedFiles = [...(qFiles.files || [])];
     
     // 파일 검증
     const errors = validateFiles(qSelectedFiles);
     if (errors.length > 0) {
-      alert(errors.join("\n"));
+      console.warn(errors.join("\\n"));
       qFiles.value = "";
       qSelectedFiles = [];
       return;
@@ -318,14 +350,22 @@ if (qFiles) {
   });
 }
 
+if (uploadTrigger) {
+  uploadTrigger.addEventListener("click", () => {
+    if (qPhotosLocked) return;
+    if (qFiles) qFiles.click();
+  });
+}
+
 // ===== Save Diary =====
+// ===== Save Diary ===== 부분 수정
 if (qSave) {
   qSave.addEventListener("click", async () => {
     if (!qCurrentDateStr) return;
     const text = qNote ? qNote.value.trim() : "";
     
     if (!qSelectedFiles.length && !text) {
-      alert("내용이나 이미지를 입력해 주세요.");
+      console.warn("내용이나 이미지를 입력해 주세요.");
       return;
     }
 
@@ -334,13 +374,25 @@ if (qSave) {
     qSave.textContent = "저장 중...";
     
     try {
+      // ⭐ CSRF 토큰 먼저 확보
+      console.log("🔐 Ensuring CSRF token...");
+      const token = await ensureCsrfToken();
+      console.log("✅ CSRF token ready:", token ? "YES" : "NO");
+      
+      if (!token) {
+        throw new Error("CSRF 토큰을 가져올 수 없습니다. 페이지를 새로고침해주세요.");
+      }
+      
       // 1) 이미지 업로드 (base64)
-      if (qSelectedFiles.length > 0) {
+      if (qSelectedFiles.length > 0 && !qPhotosLocked) {
+        console.log("📤 Uploading images...");
         await uploadBase64Images(qCurrentDateStr, qSelectedFiles);
+        console.log("✅ Images uploaded");
       }
       
       // 2) 텍스트 일기 저장
       if (text) {
+        console.log("📤 Saving diary text...");
         const res = await fetch(`${API_BASE}/api/diary`, {
           method: "POST",
           credentials: "include",
@@ -349,14 +401,19 @@ if (qSave) {
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data?.error || "일기 저장에 실패했습니다.");
+        console.log("✅ Diary text saved");
       }
       
       invalidateOverview(qCurrentDateStr);
       await render();
+      
+      if (viewSheetDateStr === qCurrentDateStr) {
+        openViewer(qCurrentDateStr);
+      }
       closeQuickDiary();
-      alert("저장 성공!");
+      console.log("✅ 저장 완료");
     } catch (e) {
-      console.error(e);
+      console.error("❌ Save error:", e);
       alert(`저장 중 오류 발생: ${e.message}`);
     } finally {
       qSave.disabled = false;
@@ -369,6 +426,7 @@ if (qSave) {
 async function openViewer(dateStr) {
   const sheet = document.getElementById("view-sheet");
   if (!sheet) return;
+  viewSheetDateStr = dateStr;
   
   const dateEl = document.getElementById("v-date");
   const metaEl = document.getElementById("v-meta");
@@ -376,12 +434,34 @@ async function openViewer(dateStr) {
   const textEl = document.getElementById("v-text");
   const schedWrap = document.getElementById("v-schedules-wrap");
   const schedEl = document.getElementById("v-schedules");
+  const schedTime = document.getElementById("schedTime");
+  const schedTitle = document.getElementById("schedTitle");
+  const schedAdd = document.getElementById("schedAdd");
   const editBtn = document.getElementById("v-edit");
+  const addBtn = document.getElementById("v-add");
   const deleteBtn = document.getElementById("v-delete");
   const closeBtn = document.getElementById("v-close");
+  const cardEl = document.getElementById("v-card");
+  let firstRatio = null;
 
+  // 즉시 표시 + 애니메이션 초기화
+  sheet.classList.add("open");
+  if (cardEl) {
+    cardEl.style.transform = "";
+    cardEl.classList.remove("anim-in");
+    void cardEl.offsetWidth; // reflow
+    cardEl.classList.add("anim-in");
+  }
   if (dateEl) dateEl.textContent = dateStr;
-  
+  if (metaEl) metaEl.textContent = "";
+  if (photosEl) photosEl.innerHTML = "";
+  if (textEl) {
+    textEl.textContent = "작성된 내용이 없어요.";
+    textEl.classList.add("empty");
+  }
+  if (schedEl) schedEl.innerHTML = "";
+  if (schedWrap) schedWrap.style.display = "none";
+
   let diaryData = { entry: null, photos: [] };
   let schedules = { items: [] };
   
@@ -398,6 +478,11 @@ async function openViewer(dateStr) {
   const photos = diaryData.photos || [];
   const schedItems = schedules.items || [];
 
+  if (cardEl) {
+    cardEl.classList.remove("compact", "with-photos");
+    cardEl.classList.add(photos.length ? "with-photos" : "compact");
+  }
+
   if (metaEl) {
     const meta = [];
     if (photos.length) meta.push(`${photos.length}장 사진`);
@@ -408,13 +493,15 @@ async function openViewer(dateStr) {
   if (photosEl) {
     photosEl.innerHTML = "";
     if (photos.length) {
+      // 첫 번째 업로드된 사진이 먼저 나오도록 정렬
+      photos.sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
       photos.forEach((p) => {
         const img = document.createElement("img");
-        // base64 이미지는 직접 표시
         img.src = p.base64_data || p.url || "";
         img.alt = `사진`;
         photosEl.appendChild(img);
       });
+      photosEl.scrollLeft = 0;
     }
   }
 
@@ -444,11 +531,26 @@ async function openViewer(dateStr) {
       schedWrap.style.display = "none";
     }
   }
+  if (schedTime) schedTime.value = "";
+  if (schedTitle) schedTitle.value = "";
 
   if (editBtn) {
     editBtn.onclick = () => {
       closeViewer();
-      openQuickDiary(dateStr);
+      openQuickDiary(dateStr, {
+        lockPhotos: true,
+        noteText: entry.text || "",
+      });
+    };
+  }
+
+  if (addBtn) {
+    addBtn.onclick = () => {
+      closeViewer();
+      openQuickDiary(dateStr, {
+        lockPhotos: false,
+        noteText: entry.text || "",
+      });
     };
   }
   
@@ -468,22 +570,107 @@ async function openViewer(dateStr) {
         invalidateOverview(dateStr);
         await render();
         closeViewer();
-        alert("삭제되었습니다.");
+        console.log("삭제되었습니다.");
       } catch (e) {
         console.error(e);
-        alert("삭제 중 오류가 발생했습니다.");
+        console.error("삭제 중 오류가 발생했습니다.");
       }
     };
   }
   
   if (closeBtn) closeBtn.onclick = () => closeViewer();
-  
-  sheet.classList.add("open");
+
+  if (schedAdd) {
+    schedAdd.onclick = async () => {
+      if (!viewSheetDateStr) return;
+      const title = schedTitle ? schedTitle.value.trim() : "";
+      if (!title) {
+        console.warn("일정 제목을 입력해 주세요.");
+        return;
+      }
+      const timeVal = schedTime && schedTime.value ? schedTime.value : "00:00";
+      const startAt = `${viewSheetDateStr}T${timeVal}:00`;
+      schedAdd.disabled = true;
+      try {
+        await apiFetch("/api/schedules", {
+          method: "POST",
+          headers: AUTH_HEADERS({ "Content-Type": "application/json" }),
+          body: JSON.stringify({ title, start_at: startAt }),
+        }).then(async (res) => {
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data?.error || "일정 저장 실패");
+          invalidateOverview(viewSheetDateStr);
+          const refreshed = await fetchSchedulesDay(viewSheetDateStr);
+          if (refreshed?.items && schedEl) {
+            schedEl.innerHTML = "";
+            refreshed.items.forEach((s) => {
+              const li = document.createElement("li");
+              const time = document.createElement("span");
+              const titleSpan = document.createElement("span");
+              time.className = "time";
+              titleSpan.className = "title";
+              time.textContent = (s.start_at || "T00:00:00").slice(11, 16);
+              titleSpan.textContent = s.title;
+              li.appendChild(time);
+              li.appendChild(titleSpan);
+              schedEl.appendChild(li);
+            });
+            if (schedWrap) schedWrap.style.display = refreshed.items.length ? "block" : "none";
+          }
+        });
+      } catch (err) {
+        console.error(err);
+      } finally {
+        schedAdd.disabled = false;
+      }
+    };
+  }
 }
 
 function closeViewer() {
   const sheet = document.getElementById("view-sheet");
   if (sheet) sheet.classList.remove("open");
+}
+
+// Swipe down to close the view sheet
+function bindViewSheetDrag() {
+  const sheet = document.getElementById("view-sheet");
+  const card = document.getElementById("v-card");
+  if (!sheet || !card) return;
+  let startY = 0;
+  let dragging = false;
+  let currentY = 0;
+
+  const onStart = (y) => {
+    if (!sheet.classList.contains("open")) return;
+    dragging = true;
+    startY = y;
+    currentY = 0;
+    card.style.transition = "transform 0s";
+  };
+  const onMove = (y) => {
+    if (!dragging) return;
+    currentY = y - startY;
+    if (currentY > 0) card.style.transform = `translateY(${currentY}px)`;
+  };
+  const onEnd = () => {
+    if (!dragging) return;
+    dragging = false;
+    card.style.transition = "transform 0.2s ease";
+    if (currentY > 80) {
+      closeViewer();
+    } else {
+      card.style.transform = "";
+    }
+  };
+
+  card.addEventListener("touchstart", (e) => onStart(e.touches[0].clientY), { passive: true });
+  card.addEventListener("touchmove", (e) => onMove(e.touches[0].clientY), { passive: true });
+  card.addEventListener("touchend", onEnd, { passive: true });
+  card.addEventListener("mousedown", (e) => onStart(e.clientY));
+  card.addEventListener("mousemove", (e) => onMove(e.clientY));
+  card.addEventListener("mouseup", onEnd);
+  card.addEventListener("mouseleave", onEnd);
 }
 
 document.addEventListener("click", (e) => {
@@ -536,35 +723,36 @@ if (grid) {
 function onClickDate(d) {
   selectedDate = d;
   updateSelectedInfo();
-  render();
   openViewer(fmt(d));
+  render();
 }
 
 // ===== Controls =====
 if (prevBtn) {
-  prevBtn.addEventListener("click", async () => {
+  prevBtn.addEventListener("click", () => {
     viewDate.setMonth(viewDate.getMonth() - 1);
-    await render();
+    render("prev");
   });
 }
 
 if (nextBtn) {
-  nextBtn.addEventListener("click", async () => {
+  nextBtn.addEventListener("click", () => {
     viewDate.setMonth(viewDate.getMonth() + 1);
-    await render();
+    render("next");
   });
 }
 
 if (todayBtn) {
-  todayBtn.addEventListener("click", async () => {
+  todayBtn.addEventListener("click", () => {
     viewDate = new Date();
     selectedDate = new Date(today);
     updateSelectedInfo();
-    await render();
+    render("today");
   });
 }
 
 // ===== Init =====
 (async () => {
   await render();
+  bindViewSheetDrag();
 })();

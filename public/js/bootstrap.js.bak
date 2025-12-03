@@ -1,5 +1,4 @@
-// ê°œë°œ/?„ë©”??ë¯¸ì—°ê²??¨ê³„?ì„œ??ê°™ì? ì¶œì²˜ë¡??µì‹ ?˜ì—¬ CORS/ì¿ í‚¤ ?´ìŠˆë¥??Œí”¼?©ë‹ˆ??
-// (?¤ì„œë²??°ê²° ??window.API_BASEë¥?Workers ?„ë©”?¸ìœ¼ë¡?ë°”ê¿” ì£¼ì„¸??)
+ï»¿// Dev/test helper: set API_BASE here if you need to override for Workers.
 if (typeof window !== "undefined") {
   window.API_BASE = "";
 }

@@ -78,7 +78,7 @@ async function init() {
 
     const user = meData.user || {};
     // 3) 렌더
-    setSrc("#avatar", user.avatar_url || "/image/logoblack.svg");
+    setSrc("#avatar", user.avatar_base64 || user.avatar_url || "/image/avatar-default.png");
     renderText("#nickname", user.nickname || "(닉네임 없음)");
     renderText("#username", "@" + (user.username || ""));
     renderText("#bioText", user.bio || "소개가 없습니다.");

@@ -66,7 +66,7 @@ async function postJson(path, payload) {
 })();
 
 function renderProfile(user) {
-  $("#avatar").src = user.avatar_url || "/image/avatar-default.png";
+  $("#avatar").src = user.avatar_base64 || user.avatar_url || "/image/avatar-default.png";
   $("#nickname").textContent = user.nickname || "(닉네임 없음)";
   $("#username").textContent = "@" + user.username;
   $("#bioText").textContent = user.bio || "소개가 없습니다.";

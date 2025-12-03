@@ -7,11 +7,11 @@
   <link rel="stylesheet" href="/style.css" />
   <script src="/js/bootstrap.js"></script>
   <style>
-    :root { color-scheme: dark; }
+    :root { color-scheme: light; --line: rgba(0,0,0,.14); --muted: rgba(0,0,0,.6); }
     body {
       margin: 0;
-      background: #000;
-      color: #fff;
+      background: #fff;
+      color: #111;
       font-family: -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;
       min-height: 100vh;
       display: flex;
@@ -22,16 +22,16 @@
     .hero {
       text-align: center;
       padding: 32px 28px 40px;
-      border: 1px solid rgba(255,255,255,.14);
+      border: 1px solid var(--line);
       border-radius: 24px;
       max-width: 480px;
       width: min(100%, 520px);
-      background: radial-gradient(circle at top, rgba(255,255,255,.08), transparent 65%);
+      background: radial-gradient(circle at top, rgba(0,0,0,.05), transparent 65%);
     }
     .hero img {
       display: block;
-      width: clamp(96px, 30vw, 150px);
-      height: auto;
+      height: var(--logo-size);
+      width: auto;
       margin: 0 auto 20px;
     }
     .hero h1 {
@@ -41,7 +41,7 @@
     }
     .hero p {
       margin: 0 0 28px;
-      color: rgba(255,255,255,.72);
+      color: var(--muted);
       line-height: 1.5;
       font-size: 16px;
     }
@@ -52,15 +52,15 @@
       gap: 8px;
       padding: 15px 32px;
       border-radius: 999px;
-      border: 1px solid #fff;
-      background: #fff;
-      color: #000;
+      border: 1px solid #111;
+      background: #111;
+      color: #fff;
       font-weight: 600;
       text-decoration: none;
       transition: transform .15s ease, box-shadow .15s ease;
       min-width: 200px;
     }
-    .hero a:hover { transform: translateY(-1px); box-shadow: 0 12px 24px rgba(255,255,255,.18); }
+    .hero a:hover { transform: translateY(-1px); box-shadow: 0 12px 24px rgba(0,0,0,.14); }
   </style>
   <script>
     // 로그인 상태면 바로 캘린더로 이동 (선택 사항)
@@ -86,4 +86,3 @@
   </main>
 </body>
 </html>
-

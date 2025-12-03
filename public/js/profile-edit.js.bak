@@ -8,6 +8,7 @@ const saveBtn = document.getElementById("save");
 let pendingFile = null;
 let previewUrl = null;
 const MAX_AVATAR_SIZE = 5 * 1024 * 1024; // 5MB
+const CSRF_META = 'meta[name="csrf-token"]';
 const MAX_FILE_COUNT = 1;
 
 init();
@@ -16,6 +17,21 @@ async function init() {
   await loadProfile();
   fileEl?.addEventListener("change", handleFileChange);
   saveBtn?.addEventListener("click", handleSave);
+}
+
+async function getCsrfToken() {
+  if (typeof document !== "undefined") {
+    const meta = document.querySelector(CSRF_META);
+    if (meta?.content) return meta.content;
+  }
+  try {
+    const res = await apiFetch(`/api/csrf`, { credentials: "include" });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data?.csrfToken) return data.csrfToken;
+  } catch (err) {
+    console.warn("csrf fetch failed", err);
+  }
+  return "";
 }
 
 async function loadProfile() {
@@ -27,10 +43,7 @@ async function loadProfile() {
     }
     if (sess.userId) setUserId(sess.userId);
 
-    let profileRes = await apiFetch(`/api/users/${encodeURIComponent(sess.userId)}`);
-    if (!profileRes.ok) {
-      profileRes = await apiFetch(`/api/me`);
-    }
+    const profileRes = await apiFetch(`/api/users/${encodeURIComponent(sess.userId)}`);
     const profile = await profileRes.json();
     if (profile?.user) {
       const avatarSrc =
@@ -84,11 +97,12 @@ async function handleSave() {
     }
 
     if (bioEl) {
-      await ensureCsrfToken();
+      const csrf = await getCsrfToken();
       await apiFetch(`/api/users/me/bio`, {
         method: "POST",
         headers: AUTH_HEADERS({
           "Content-Type": "application/json",
+          "X-CSRF-Token": csrf,
         }),
         body: JSON.stringify({ bio: bioEl.value.trim() }),
       }).then(checkOk("소개 저장에 실패했습니다."));
@@ -117,12 +131,13 @@ function checkOk(message) {
 
 async function uploadAvatarBase64(file) {
   const base64 = await fileToBase64(file);
-  await ensureCsrfToken();
+  const csrf = await getCsrfToken();
   const res = await fetch(`${API_BASE}/api/profile/avatar-base64`, {
     method: "POST",
     credentials: "include",
     headers: AUTH_HEADERS({
       "Content-Type": "application/json",
+      "X-CSRF-Token": csrf,
     }),
     body: JSON.stringify({
       files: [

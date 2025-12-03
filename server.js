@@ -167,7 +167,7 @@ async function ensureUserColumns() {
   if (!names.has("bio")) await db.exec(`ALTER TABLE users ADD COLUMN bio TEXT;`);
 }
 await ensureUserColumns();
-
+await ensureDiaryPhotosColumns();
 /* -------------------- Upload (multer) -------------------- */
 const uploadDir = path.join(__dirname, "public", "uploads");
 await fs.promises.mkdir(uploadDir, { recursive: true });
@@ -194,6 +194,21 @@ const uploadDiaryMany = multer({
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: imageFilter,
 });
+/* -------------------- CSRF Debug Middleware -------------------- */
+app.use((req, res, next) => {
+  if (req.method === 'POST' || req.method === 'DELETE' || req.method === 'PATCH') {
+    console.log('🔍 CSRF Debug:', {
+      path: req.path,
+      cookies: req.cookies,
+      signedCookies: req.signedCookies,
+      headers: {
+        'x-csrf-token': req.headers['x-csrf-token'],
+        'csrf-token': req.headers['csrf-token']
+      }
+    });
+  }
+  next();
+});
 
 /* -------------------- Rate Limits -------------------- */
 const authLimiter = rateLimit({
@@ -208,13 +223,45 @@ app.use("/api/auth/", authLimiter);
 const csrfProtection = csrf({
   cookie: {
     key: CSRF_COOKIE_NAME,
-    httpOnly: false,
+    httpOnly: false,  // 클라이언트에서 읽을 수 있어야 함
     sameSite: "lax",
     secure: isProd,
-  },
+    path: "/"
+  }
 });
-app.get("/api/csrf", csrfProtection, (req, res) => {
-  res.json({ csrfToken: req.csrfToken() });
+
+// ⭐ CSRF 토큰 발급 엔드포인트 수정 - csrfProtection 제거
+app.get("/api/csrf", (req, res) => {
+  // 먼저 임시 CSRF 생성
+  const tempCsrf = csrf({
+    cookie: {
+      key: CSRF_COOKIE_NAME,
+      httpOnly: false,
+      sameSite: "lax",
+      secure: isProd,
+      path: "/"
+    }
+  });
+  
+  tempCsrf(req, res, (err) => {
+    if (err) {
+      console.error("CSRF generation error:", err);
+      return res.status(500).json({ error: "CSRF 토큰 생성 실패" });
+    }
+    
+    const token = req.csrfToken();
+    console.log("🔑 Generated CSRF token:", token.substring(0, 20) + "...");
+    
+    // 쿠키에 명시적으로 설정
+    res.cookie(CSRF_COOKIE_NAME, token, {
+      httpOnly: false,
+      sameSite: "lax",
+      secure: isProd,
+      path: "/"
+    });
+    
+    res.json({ csrfToken: token });
+  });
 });
 
 /* -------------------- Helpers -------------------- */
@@ -522,7 +569,86 @@ app.get("/api/friends/list", authRequired, async (req, res) => {
 });
 
 /* -------------------- Diary APIs -------------------- */
-// 다이어리 업로드 (여러 장)
+
+// ⭐ Base64 이미지 업로드 엔드포인트 추가
+app.post("/api/diary/upload-base64", csrfProtection, authRequired, async (req, res) => {
+  try {
+    const { date, files } = req.body || {};
+    
+    console.log("📥 Upload request:", { date, fileCount: files?.length });
+    
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ error: "잘못된 날짜 형식" });
+    }
+    
+    if (!files || !Array.isArray(files) || files.length === 0) {
+      return res.status(400).json({ error: "업로드할 파일이 없습니다" });
+    }
+    
+    // 파일 개수 제한 (5장)
+    if (files.length > 5) {
+      return res.status(400).json({ error: "최대 5장까지 업로드 가능합니다" });
+    }
+    
+    // Base64 크기 검증 (각 이미지 5MB)
+    for (const file of files) {
+      if (!file.base64) {
+        return res.status(400).json({ error: "잘못된 파일 형식" });
+      }
+      const base64Data = file.base64.split(',')[1] || file.base64;
+      const sizeInBytes = (base64Data.length * 3) / 4;
+      if (sizeInBytes > 5 * 1024 * 1024) {
+        return res.status(400).json({ error: `${file.filename}의 크기가 5MB를 초과합니다` });
+      }
+    }
+    
+    // 기존 엔트리 찾기 또는 새로 생성
+    let entry = await db.get(
+      `SELECT id FROM diary_entries WHERE user_id = ? AND date = ?`,
+      [req.user.id, date]
+    );
+    
+    const now = nowISO();
+    let entryId;
+    
+    if (!entry) {
+      entryId = "de_" + nanoid(16);
+      await db.run(
+        `INSERT INTO diary_entries (id, user_id, date, text, thumbnail_url, created_at, updated_at)
+         VALUES (?, ?, ?, '', ?, ?, ?)`,
+        [entryId, req.user.id, date, files[0].base64, now, now]
+      );
+      console.log("✅ Created new diary entry:", entryId);
+    } else {
+      entryId = entry.id;
+      console.log("✅ Using existing diary entry:", entryId);
+    }
+    
+    // Base64 이미지를 DB에 저장
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const photoId = "dp_" + nanoid(12);
+      await db.run(
+        `INSERT INTO diary_photos (id, entry_id, user_id, order_index, image_data, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [photoId, entryId, req.user.id, file.order ?? i, file.base64, now]
+      );
+      console.log(`✅ Saved photo ${i + 1}/${files.length}:`, photoId);
+    }
+    
+    // 썸네일 업데이트
+    await db.run(
+      `UPDATE diary_entries SET thumbnail_url = ?, updated_at = ? WHERE id = ?`,
+      [files[0].base64, now, entryId]
+    );
+    
+    console.log("✅ Upload complete:", { entryId, count: files.length });
+    res.json({ ok: true, entryId, count: files.length });
+  } catch (e) {
+    console.error("❌ Upload error:", e);
+    res.status(500).json({ error: "업로드 실패: " + e.message });
+  }
+});
 app.post("/api/diary", csrfProtection, authRequired, (req, res) => {
   uploadDiaryMany.array("images", 9)(req, res, async (err) => {
     try {
@@ -575,20 +701,36 @@ app.get("/api/diary/:userId/photos", authRequired, async (req, res) => {
   res.json({ items: rows });
 });
 
-// 특정 날짜의 내 다이어리
 app.get("/api/diary/day/:date", authRequired, async (req, res) => {
   const date = String(req.params.date || "");
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: "잘못된 날짜" });
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return res.status(400).json({ error: "잘못된 날짜" });
+  }
+  
   const entry = await db.get(
     `SELECT id, text, thumbnail_url FROM diary_entries WHERE user_id = ? AND date = ?`,
     [req.user.id, date]
   );
+  
   if (!entry) return res.json({ entry: null, photos: [] });
+  
+  // ⭐ image_data 또는 image_url 반환
   const photos = await db.all(
-    `SELECT id, order_index, image_url FROM diary_photos WHERE entry_id = ? ORDER BY order_index ASC`,
+    `SELECT id, order_index, image_url, image_data 
+     FROM diary_photos 
+     WHERE entry_id = ? 
+     ORDER BY order_index ASC`,
     [entry.id]
   );
-  res.json({ entry, photos });
+  
+  // base64_data 필드 추가 (클라이언트 호환성)
+  const photosWithBase64 = photos.map(p => ({
+    ...p,
+    base64_data: p.image_data || p.image_url,
+    order_index: p.order_index
+  }));
+  
+  res.json({ entry, photos: photosWithBase64 });
 });
 
 // 다이어리 삭제

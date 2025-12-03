@@ -8,11 +8,11 @@
   <script src="/js/bootstrap.js"></script>
 <style>
     :root {
-      --bg: #000;
-      --fg: #fff;
-      --muted: rgba(255,255,255,.45);
-      --line: rgba(255,255,255,.1);
-      --hover: rgba(255,255,255,.05);
+      --bg: #fff;
+      --fg: #111;
+      --muted: rgba(0,0,0,.55);
+      --line: rgba(0,0,0,.12);
+      --hover: rgba(0,0,0,.04);
       --tap: 48px;
       --radius-sm: 12px;
       --radius-md: 16px;
@@ -142,17 +142,21 @@
       transition: background 0.15s ease;
     }
     
-    .cell:hover .overlay {
-      background: rgba(0,0,0,.4);
-    }
-    
-    .num {
-      font-size: 14px;
-      font-weight: 500;
-      pointer-events: none;
-      z-index: 1;
-      position: relative;
-    }
+  .cell:hover .overlay {
+    background: rgba(0,0,0,.4);
+  }
+
+  .num {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 500;
+    pointer-events: none;
+    z-index: 1;
+  }
     
     .dot {
       position: absolute;
@@ -279,7 +283,7 @@
       right: 0;
       bottom: 0;
       z-index: 900;
-      background: #0a0a0a;
+      background: #f8f8f8;
       border-top: 1px solid var(--line);
       border-radius: var(--radius-lg) var(--radius-lg) 0 0;
       transform: translateY(110%);
@@ -329,6 +333,10 @@
       border-color: rgba(255,255,255,.25);
       background: rgba(255,255,255,.04);
     }
+    .photos-locked .upload-trigger {
+      pointer-events: none;
+      opacity: 0.35;
+    }
     
     .quick-sheet label {
       display: block;
@@ -344,9 +352,9 @@
 
     .upload-trigger {
       width: 100%;
-      border: 2px dashed rgba(255, 255, 255, 0.2);
+      border: 2px dashed rgba(0, 0, 0, 0.15);
       border-radius: var(--radius-sm);
-      padding: 24px;
+      padding: 18px;
       background: transparent;
       color: var(--fg);
       cursor: pointer;
@@ -354,20 +362,20 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
       font-family: inherit;
       font-size: 14px;
     }
 
     .upload-trigger:hover {
       border-color: rgba(255, 255, 255, 0.4);
-      background: rgba(255, 255, 255, 0.05);
+      background: rgba(0, 0, 0, 0.03);
     }
 
     .upload-trigger svg {
-      width: 32px;
-      height: 32px;
-      opacity: 0.4;
+      width: 28px;
+      height: 28px;
+      opacity: 0.6;
     }
     
     .quick-preview {
@@ -385,100 +393,219 @@
       border: 1px solid var(--line);
     }
     
-    /* ===== Viewer Sheet ===== */
+    /* ===== Viewer Sheet (replaced) ===== */
     #view-sheet {
       position: fixed;
       inset: 0;
-      background: rgba(0,0,0,.85);
+      background: rgba(255,255,255,.85);
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
       display: none;
-      align-items: flex-end;
+      align-items: center;
+      justify-content: center;
       z-index: 850;
-      padding: 20px;
+      padding: 0;
     }
-    
-    #view-sheet.open { 
-      display: flex; 
-    }
-    
+    #view-sheet.open { display: flex; }
     .viewer-card {
       width: 100%;
-      max-width: 520px;
-      margin: 0 auto;
-      background: #0f0f0f;
+      height: auto;
+      max-height: 90vh;
+      max-width: 100%;
+      margin: 0;
+      position: relative;
+      background: #fff;
       border: 1px solid var(--line);
-      border-radius: var(--radius-lg);
-      padding: 24px;
-      max-height: 82vh;
+      border-radius: 0;
+      padding: 60px 24px 24px;
       overflow: auto;
-      box-shadow: 0 16px 64px rgba(0,0,0,.8);
-    }
-    
-    .sheet-head {
+      box-shadow: none;
+      transition: transform 0.2s ease;
       display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      margin-bottom: 20px;
-      padding-bottom: 16px;
-      border-bottom: 1px solid var(--line);
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
     }
-    
-    .sheet-head .date {
-      font-size: 18px;
-      font-weight: 600;
-      margin-bottom: 4px;
+    .viewer-card.anim-in {
+      animation: sheetEnter 0.28s ease;
     }
-    
-    .sheet-head .meta {
+    .viewer-card.compact {
+      height: 33vh;
+      max-height: 33vh;
+      width: 100%;
+      max-width: 520px;
+      margin: auto;
+      border-radius: var(--radius-lg);
+    }
+    .viewer-card.with-photos {
+      height: 100%;
+      max-height: 100vh;
+    }
+    .sheet-head {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      padding-bottom: 0;
+      border: none;
+      background: transparent;
+      width: 100%;
+      max-width: 640px;
+    }
+    .sheet-head .date { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+    .sheet-head .meta { font-size: 12px; color: var(--muted); }
+    .sheet-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      margin-top: 16px;
+    }
+    .sheet-actions button {
+      min-width: 40px;
+      width: 40px;
+      height: 40px;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+    }
+    .sheet-actions button svg { width: 18px; height: 18px; }
+    .viewer-section { margin-top: 24px; }
+    .viewer-section h4 {
+      margin: 0 0 12px;
       font-size: 12px;
-      color: var(--muted);
-    }
-    
-    .viewer-section { 
-      margin-top: 24px; 
-    }
-    
-    .viewer-section h4 { 
-      margin: 0 0 12px; 
-      font-size: 12px; 
       color: var(--muted);
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
-    
-    .viewer-text { 
-      white-space: pre-wrap; 
-      line-height: 1.7;
-      font-size: 15px;
-    }
-    
-    .viewer-text.empty { 
-      color: var(--muted);
-      font-style: italic;
-    }
-    
+    .viewer-text { white-space: pre-wrap; line-height: 1.7; font-size: 15px; }
+    .viewer-text.empty { color: var(--muted); font-style: italic; }
     .viewer-photos {
       display: flex;
       gap: 12px;
       overflow-x: auto;
-      padding: 4px 0;
-      margin: -4px 0;
+      padding: 0 0 10px;
+      margin: 0;
       -webkit-overflow-scrolling: touch;
+      justify-content: center;
+      align-items: center;
+      width: 100%;
+      scroll-snap-type: x mandatory;
     }
-    
-    .viewer-photos::-webkit-scrollbar {
-      display: none;
-    }
-    
+    .viewer-photos::-webkit-scrollbar { display: none; }
     .viewer-photos img {
-      width: 240px;
-      height: 240px;
+      width: 100%;
+      max-width: 560px;
+      height: auto;
+      max-height: 70vh;
+      aspect-ratio: 1 / 1;
       object-fit: cover;
       border-radius: var(--radius-sm);
       border: 1px solid var(--line);
       flex-shrink: 0;
+      scroll-snap-align: start;
+    }
+    @keyframes sheetEnter {
+      from { transform: translateY(36px); opacity: 0.75; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    .view-logo {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: fixed;
+      top: 8px;
+      left: 0;
+      right: 0;
+      margin: 0 auto;
+      z-index: 12;
+      pointer-events: none;
+    }
+    .view-logo img {
+      height: var(--logo-size);
+      object-fit: contain;
+    }
+    .close-btn {
+      min-width: 40px;
+      width: 40px;
+      height: 40px;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      position: fixed;
+      top: 8px;
+      left: 8px;
+      z-index: 14;
+      background: rgba(255,255,255,0.9);
+      border: 1px solid var(--line);
+      border: 1px solid var(--line);
+    }
+    .close-btn svg {
+      width: 18px;
+      height: 18px;
+    }
+    .sched-list { list-style: none; padding: 0; margin: 0; }
+    .sched-list li {
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      margin-bottom: 8px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    .sched-list .time { color: var(--muted); font-size: 13px; }
+    .sched-list .title { flex: 1; font-size: 14px; }
+    .sched-form {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
+    .sched-form input[type="time"],
+    .sched-form input[type="text"] {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 14px;
+      color: var(--fg);
+      background: #fff;
+      flex: 1;
+      min-width: 140px;
+    }
+    .sched-form button {
+      height: 44px;
+      padding: 0 14px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: #111;
+      color: #fff;
+      font-weight: 600;
+    }
+
+    /* Grid slide animation */
+    .grid.slide-from-right {
+      animation: slideFromRight 0.3s ease;
+    }
+    .grid.slide-from-left {
+      animation: slideFromLeft 0.3s ease;
+    }
+    @keyframes slideFromRight {
+      from { transform: translateX(24px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes slideFromLeft {
+      from { transform: translateX(-24px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
     }
     
     /* ===== Navigation Bar ===== */
@@ -514,11 +641,11 @@
       color: var(--fg);
     }
     
-    .nav-icon {
-      width: 24px;
-      height: 24px;
-      stroke: currentColor;
-      fill: none;
+  .nav-icon {
+    width: 24px;
+    height: 24px;
+    stroke: currentColor;
+    fill: none;
       stroke-width: 2;
       stroke-linecap: round;
       stroke-linejoin: round;
@@ -530,9 +657,9 @@
     <div class="header-inner">
       <div class="title">-</div>
       <div class="controls">
-        <button id="prevBtn" aria-label="이전 달">이전</button>
+        <button id="prevBtn" aria-label="이전 달">←</button>
         <button id="todayBtn">오늘</button>
-        <button id="nextBtn" aria-label="다음 달">다음</button>
+        <button id="nextBtn" aria-label="다음 달">→</button>
       </div>
     </div>
     <div class="weekday">
@@ -553,11 +680,11 @@
     <textarea id="qNote" placeholder="오늘 있었던 일을 적어보세요."></textarea>
 <label for="qFiles">사진 첨부 (최대 5장, 각 5MB)</label>
 <input type="file" id="qFiles" accept="image/*" multiple />
-<button type="button" class="upload-trigger" onclick="document.getElementById('qFiles').click()">
-  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" stroke-width="2"/>
-    <circle cx="8.5" cy="8.5" r="1.5"/>
-    <polyline points="21 15 16 10 5 21" stroke-width="2"/>
+<button type="button" class="upload-trigger" id="uploadTrigger">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="12" r="10"/>
+    <line x1="12" y1="8" x2="12" y2="16"/>
+    <line x1="8" y1="12" x2="16" y2="12"/>
   </svg>
   <span style="opacity: 0.6;">사진 추가 (최대 5장)</span>
 </button>
@@ -565,30 +692,63 @@
     <button id="qSave" class="primary" style="margin-top: 12px; width: 100%;">저장</button>
   </div>
 
-  <div id="view-sheet">
-    <div class="viewer-card" id="v-card">
-      <header class="sheet-head">
-        <div>
-          <div id="v-date" class="date"></div>
-          <div id="v-meta" class="meta"></div>
-        </div>
-        <div class="sheet-actions">
-          <button id="v-edit">수정</button>
-          <button id="v-delete">삭제</button>
-          <button id="v-close">닫기</button>
-        </div>
-      </header>
-      <div id="v-photos" class="viewer-photos"></div>
-      <section class="viewer-section">
-        <h4>다이어리</h4>
-        <div id="v-text" class="viewer-text empty">작성된 내용이 없어요.</div>
-      </section>
-      <section class="viewer-section" id="v-schedules-wrap" style="display:none">
-        <h4>일정</h4>
-        <ul id="v-schedules" class="sched-list"></ul>
-      </section>
+<div id="view-sheet">
+  <div class="viewer-card" id="v-card">
+    <div class="view-logo">
+      <img src="/image/logo.png" alt="Weekly 로고" />
     </div>
+    <header class="sheet-head">
+      <div>
+        <div id="v-date" class="date"></div>
+        <div id="v-meta" class="meta"></div>
+      </div>
+      <button id="v-close" class="close-btn" type="button" aria-label="닫기">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 6 6 18"/>
+          <path d="m6 6 12 12"/>
+        </svg>
+      </button>
+    </header>
+    <div id="v-photos" class="viewer-photos"></div>
+    <div class="sheet-actions">
+      <button id="v-edit" type="button" aria-label="수정">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+          <path d="m15 5 4 4"/>
+        </svg>
+      </button>
+      <button id="v-add" type="button" aria-label="새 기록 추가">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="8" x2="12" y2="16"/>
+          <line x1="8" y1="12" x2="16" y2="12"/>
+        </svg>
+      </button>
+      <button id="v-delete" type="button" aria-label="삭제">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 6h18"/>
+          <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+          <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+          <line x1="10" x2="10" y1="11" y2="17"/>
+          <line x1="14" x2="14" y1="11" y2="17"/>
+        </svg>
+      </button>
+    </div>
+    <section class="viewer-section">
+      <h4>다이어리</h4>
+      <div id="v-text" class="viewer-text empty">작성된 내용이 없어요.</div>
+    </section>
+    <section class="viewer-section" id="v-schedules-wrap" style="display:none">
+      <h4>일정</h4>
+      <ul id="v-schedules" class="sched-list"></ul>
+      <div class="sched-form">
+        <input type="time" id="schedTime" aria-label="시작 시간" />
+        <input type="text" id="schedTitle" placeholder="일정 제목" aria-label="일정 제목" />
+        <button type="button" id="schedAdd">추가</button>
+      </div>
+    </section>
   </div>
+</div>
 
   <script type="module" src="/js/calendar.js"></script>
   <script type="module" src="/js/nav.js"></script>
