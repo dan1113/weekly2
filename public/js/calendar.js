@@ -152,6 +152,7 @@ function invalidateOverview(dateStr) {
 // ===== Upload Base64 Images =====
 async function uploadBase64Images(dateStr, files) {
   await ensureCsrfToken();
+  console.log("[uploadBase64] start", { dateStr, fileCount: files.length });
   const prepared = await Promise.all(files.map((f) => prepareImageForUpload(f)));
   const base64Files = await Promise.all(
     prepared.map(async (file, index) => {
@@ -175,7 +176,11 @@ async function uploadBase64Images(dateStr, files) {
     })
   });
 
+  console.log("[uploadBase64] response", res.status, res.statusText);
   const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    console.error("[uploadBase64] error payload", data);
+  }
   if (!res.ok) throw new Error(data?.error || "이미지 업로드에 실패했습니다.");
   
   return data;
@@ -385,22 +390,31 @@ if (qSave) {
       
       // 1) 이미지 업로드 (base64)
       if (qSelectedFiles.length > 0 && !qPhotosLocked) {
-        console.log("📤 Uploading images...");
-        await uploadBase64Images(qCurrentDateStr, qSelectedFiles);
-        console.log("✅ Images uploaded");
+        console.log("📤 Uploading images...", { count: qSelectedFiles.length });
+        try {
+          await uploadBase64Images(qCurrentDateStr, qSelectedFiles);
+          console.log("✅ Images uploaded");
+        } catch (imgErr) {
+          console.error("❌ Image upload failed", imgErr);
+          throw imgErr;
+        }
       }
       
       // 2) 텍스트 일기 저장
       if (text) {
-        console.log("📤 Saving diary text...");
+        console.log("📝 Saving diary text...");
         const res = await fetch(`${API_BASE}/api/diary`, {
           method: "POST",
           credentials: "include",
           headers: AUTH_HEADERS({ "Content-Type": "application/json" }),
           body: JSON.stringify({ date: qCurrentDateStr, text })
         });
+        console.log("📝 Diary response", res.status, res.statusText);
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data?.error || "일기 저장에 실패했습니다.");
+        if (!res.ok) {
+          console.error("❌ Diary save payload", data);
+          throw new Error(data?.error || "일기 저장에 실패했습니다.");
+        }
         console.log("✅ Diary text saved");
       }
       
@@ -756,3 +770,4 @@ if (todayBtn) {
   await render();
   bindViewSheetDrag();
 })();
+

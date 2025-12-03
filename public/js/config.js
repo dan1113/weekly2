@@ -1,4 +1,4 @@
-﻿const runtime = typeof window !== "undefined" ? window : undefined;
+const runtime = typeof window !== "undefined" ? window : undefined;
 
 // Cloudflare Pages vs local
 const rawBase =
@@ -35,53 +35,49 @@ function resolveStoredUserId() {
 
 function resolveStoredCsrf() {
   if (cachedCsrf) return cachedCsrf;
-  
-  // 1) 메타 태그에서 확인
+
+  // 1) meta tag
   if (typeof document !== "undefined") {
     const meta = document.querySelector('meta[name="csrf-token"]');
     if (meta?.content) {
       cachedCsrf = meta.content;
-      console.log("✅ CSRF from meta:", cachedCsrf.substring(0, 20) + "...");
       return cachedCsrf;
     }
   }
-  
-  // 2) 쿠키에서 확인
-  if (typeof document !== "undefined") {
-    const cookies = document.cookie.split(';');
-    for (const cookie of cookies) {
-      const [name, value] = cookie.trim().split('=');
-      if (name === 'xsrf-token' || name === 'XSRF-TOKEN') {
-        cachedCsrf = decodeURIComponent(value);
-        console.log("✅ CSRF from cookie:", cachedCsrf.substring(0, 20) + "...");
-        return cachedCsrf;
-      }
-    }
-  }
-  
-  // 3) window 객체에서 확인
+
+  // 2) window global
   if (typeof window !== "undefined" && window.__CSRF_TOKEN__) {
     cachedCsrf = window.__CSRF_TOKEN__;
-    console.log("✅ CSRF from window:", cachedCsrf.substring(0, 20) + "...");
     return cachedCsrf;
   }
-  
-  // 4) localStorage에서 확인
+
+  // 3) localStorage
   if (typeof window !== "undefined") {
     try {
       const stored = localStorage.getItem("csrfToken");
       if (stored) {
         cachedCsrf = stored;
-        console.log("✅ CSRF from localStorage:", cachedCsrf.substring(0, 20) + "...");
         return stored;
       }
     } catch (err) {
       console.warn("csrf storage unavailable", err);
     }
   }
-  
-  console.warn("⚠️ CSRF token not found");
+
   return "";
+}
+
+function persistCsrf(token) {
+  if (!token) return;
+  cachedCsrf = token;
+  if (typeof window !== "undefined") {
+    window.__CSRF_TOKEN__ = token;
+    try {
+      localStorage.setItem("csrfToken", token);
+    } catch (err) {
+      console.warn("localStorage save failed", err);
+    }
+  }
 }
 
 export function setUserId(id) {
@@ -97,61 +93,33 @@ export function setUserId(id) {
   }
 }
 
-// ⭐ ensureCsrfToken 함수 - 한 번만 선언
 export async function ensureCsrfToken() {
   const existing = resolveStoredCsrf();
-  if (existing) {
-    console.log("✅ Using existing CSRF token");
-    return existing;
-  }
-  
-  if (csrfPromise) {
-    console.log("⏳ CSRF fetch already in progress...");
-    return csrfPromise;
-  }
+  if (existing) return existing;
+  if (csrfPromise) return csrfPromise;
 
-  console.log("🔄 Fetching new CSRF token...");
   csrfPromise = (async () => {
     try {
       const res = await fetch(`${API_BASE}/api/csrf`, {
         method: "GET",
         credentials: "include",
       });
-      
-      if (!res.ok) {
-        throw new Error(`CSRF fetch failed: ${res.status}`);
-      }
-      
-      const data = await res.json();
-      console.log("📥 CSRF response:", data);
-      
-      if (data?.csrfToken) {
-        cachedCsrf = data.csrfToken;
-        
-        if (typeof window !== "undefined") {
-          window.__CSRF_TOKEN__ = cachedCsrf;
-          try {
-            localStorage.setItem("csrfToken", cachedCsrf);
-          } catch (err) {
-            console.warn("localStorage save failed", err);
-          }
-        }
-        
-        console.log("✅ CSRF token cached:", cachedCsrf.substring(0, 20) + "...");
-      }
-      
-      // 쿠키에서도 다시 확인 (서버가 쿠키로 설정했을 수 있음)
-      setTimeout(() => {
-        const fromCookie = resolveStoredCsrf();
-        if (fromCookie && fromCookie !== cachedCsrf) {
-          cachedCsrf = fromCookie;
-          console.log("✅ CSRF updated from cookie");
-        }
-      }, 100);
-      
+      if (!res.ok) throw new Error(`CSRF fetch failed: ${res.status}`);
+
+      const data = await res.json().catch(() => ({}));
+      const headerToken =
+        res.headers.get("x-csrf-token") ||
+        res.headers.get("csrf-token") ||
+        res.headers.get("x-xsrf-token") ||
+        res.headers.get("xsrf-token");
+
+      const bodyToken = data?.csrfToken;
+      const token = headerToken || bodyToken;
+      if (token) persistCsrf(token);
+
       return cachedCsrf || "";
     } catch (err) {
-      console.error("❌ CSRF fetch error:", err);
+      console.error("CSRF fetch error:", err);
       return "";
     } finally {
       csrfPromise = null;
@@ -165,23 +133,17 @@ export function AUTH_HEADERS(extra = {}) {
   const headers = { ...extra };
 
   const uid = resolveStoredUserId();
-  if (uid) {
-    headers["x-user-id"] = uid;
-  }
+  if (uid) headers["x-user-id"] = uid;
 
   const csrf = resolveStoredCsrf();
   if (csrf) {
-    headers["X-CSRF-Token"] = csrf;
-    headers["CSRF-Token"] = csrf; // 백업용
-  } else {
-    console.warn("⚠️ No CSRF token available for request");
+    headers["CSRF-Token"] = csrf;
+    headers["X-XSRF-TOKEN"] = csrf;
+    headers["XSRF-TOKEN"] = csrf;
+    headers["x-xsrf-token"] = csrf;
+    headers["x-csrf-token"] = csrf;
+    headers["x-csrf-token"] = csrf;
   }
-
-  console.log("📤 Request headers:", { 
-    hasUserId: !!uid, 
-    hasCsrf: !!csrf,
-    csrfPreview: csrf ? csrf.substring(0, 20) + "..." : "none"
-  });
 
   return headers;
 }
