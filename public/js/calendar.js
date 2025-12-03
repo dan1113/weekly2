@@ -451,9 +451,27 @@ if (todayBtn)
 })();
 
 // ===== Click handler for cells =====
-function onClickDate(d) {
+async function onClickDate(d) {
   selectedDate = d;
   updateSelectedInfo();
-  render();
-  openViewer(fmt(d));
+  const dateStr = fmt(d);
+
+  const ov = overviewCache.get(overviewKey(d.getFullYear(), d.getMonth() + 1));
+  const day = Array.isArray(ov?.days) ? ov.days.find((x) => x.date === dateStr) : null;
+  let hasData = !!(day && (day.diaryThumb || (day.scheduleCount ?? 0) > 0));
+
+  if (!hasData) {
+    try {
+      const diaryData = await fetchDiaryDay(dateStr);
+      const schedData = await fetchSchedulesDay(dateStr);
+      hasData = !!((diaryData?.entry) || (diaryData?.photos?.length) || (schedData?.items?.length));
+    } catch {
+      hasData = false;
+    }
+  }
+
+  if (hasData) openViewer(dateStr);
+  else openQuickDiary(dateStr);
+
+  await render();
 }
