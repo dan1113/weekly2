@@ -1,21 +1,8 @@
-import { API_BASE, AUTH_HEADERS } from "./config.js";
-
-export async function getCSRF() {
-  try {
-    const res = await fetch(`${API_BASE}/api/csrf`, {
-      credentials: "include",
-      headers: AUTH_HEADERS(),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (res.ok && data?.csrfToken) return data.csrfToken;
-  } catch {}
-  // 개발 모드: 백엔드 라우트/도메인 미연결 시에도 진행되도록 허용
-  return "dev";
-}
+import { API_BASE, AUTH_HEADERS, ensureCsrfToken } from "./config.js";
 
 export async function api(url, opts = {}) {
-  const token = await getCSRF();
-  const headers = { ...(opts.headers || {}), "CSRF-Token": token };
+  const token = await ensureCsrfToken();
+  const headers = { ...(opts.headers || {}), "X-CSRF-Token": token };
   return fetch(`${API_BASE}${url}`, {
     credentials: "include",
     ...opts,
@@ -35,4 +22,3 @@ export const fmt = (d) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
     d.getDate()
   ).padStart(2, "0")}`;
-

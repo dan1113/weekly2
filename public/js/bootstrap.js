@@ -20,3 +20,30 @@ if (typeof window !== "undefined") {
     window.API_BASE = window.API_BASE || "";
   }
 }
+
+// === CSRF helper & global fetch patch ===
+function getCsrfToken() {
+  if (typeof document === "undefined") return "";
+  const cookies = document.cookie.split(";");
+  for (const c of cookies) {
+    const [k, v] = c.trim().split("=");
+    if (k === "XSRF-TOKEN" && v) return decodeURIComponent(v);
+  }
+  return "";
+}
+
+if (typeof window !== "undefined" && typeof window.fetch === "function") {
+  const originalFetch = window.fetch.bind(window);
+  window.fetch = function patchedFetch(url, options = {}) {
+    const opts = { ...options };
+    // API 요청에만 CSRF 헤더 자동 추가
+    if (typeof url === "string" && url.startsWith("/api/")) {
+      opts.headers = {
+        ...(opts.headers || {}),
+        "X-CSRF-Token": getCsrfToken(),
+      };
+      if (!opts.credentials) opts.credentials = "same-origin";
+    }
+    return originalFetch(url, opts);
+  };
+}

@@ -1,5 +1,5 @@
 ﻿// /public/js/login.js
-import { API_BASE, AUTH_HEADERS, setUserId } from "./config.js";
+import { API_BASE, AUTH_HEADERS, setUserId, ensureCsrfToken } from "./config.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -75,14 +75,9 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 async function requestCsrf() {
-  const res = await fetch(`${API_BASE}/api/csrf`, {
-    method: "GET",
-    credentials: "include", // ★ 쿠키 받아야 함
-    headers: AUTH_HEADERS(),
-  });
-  const data = await safeJson(res);
-  if (res.ok && data?.csrfToken) return data.csrfToken;
-  // 예전 코드처럼 "dev"로 대체하지 말고 명확히 실패 처리
+  // ensureCsrfToken은 토큰을 받아서 쿠키/스토리지에 저장까지 수행
+  const token = await ensureCsrfToken();
+  if (token) return token;
   throw new Error("CSRF 토큰을 가져오지 못했습니다.");
 }
 

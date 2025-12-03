@@ -9,9 +9,69 @@ const rawBase =
 
 export const API_BASE = rawBase.endsWith("/") ? rawBase.slice(0, -1) : rawBase;
 
-let cachedUserId = (typeof window !== "undefined" && window.USER_ID) || null;
-let cachedCsrf = (typeof window !== "undefined" && window.__CSRF_TOKEN__) || null;
+// CSRF: 단일 쿠키(XSRF-TOKEN) + 단일 헤더(X-CSRF-Token)
+const CSRF_COOKIE = "XSRF-TOKEN";
+const CSRF_HEADER = "X-CSRF-Token";
+let cachedCsrf = null;
 let csrfPromise = null;
+
+function readCsrfCookie() {
+  if (typeof document === "undefined") return "";
+  const parts = document.cookie.split(";");
+  for (const part of parts) {
+    const [k, v] = part.trim().split("=");
+    if (k === CSRF_COOKIE && v !== undefined) return decodeURIComponent(v);
+  }
+  return "";
+}
+
+function resolveCsrf() {
+  if (cachedCsrf) return cachedCsrf;
+  const fromCookie = readCsrfCookie();
+  if (fromCookie) {
+    cachedCsrf = fromCookie;
+    return cachedCsrf;
+  }
+  return "";
+}
+
+export async function ensureCsrfToken() {
+  const existing = resolveCsrf();
+  if (existing) return existing;
+  if (csrfPromise) return csrfPromise;
+
+  csrfPromise = (async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/csrf`, {
+        method: "GET",
+        credentials: "include",
+      });
+      // CSRF 발급 엔드포인트는 쿠키를 내려주기만 하면 됨.
+      // 헤더/바디는 사용하지 않고, 쿠키를 다시 읽는다.
+      const token = readCsrfCookie();
+      if (token) {
+        cachedCsrf = token;
+        return token;
+      }
+      // 혹시 헤더로 내려줬다면 보조적으로 읽음
+      const hdr = res.headers.get(CSRF_HEADER.toLowerCase()) || res.headers.get(CSRF_HEADER);
+      if (hdr) {
+        cachedCsrf = hdr;
+        return hdr;
+      }
+      return "";
+    } catch (err) {
+      console.error("CSRF fetch error:", err);
+      return "";
+    } finally {
+      csrfPromise = null;
+    }
+  })();
+
+  return csrfPromise;
+}
+
+let cachedUserId = (typeof window !== "undefined" && window.USER_ID) || null;
 
 function resolveStoredUserId() {
   if (cachedUserId) return cachedUserId;
@@ -26,58 +86,9 @@ function resolveStoredUserId() {
         cachedUserId = stored;
         return stored;
       }
-    } catch (err) {
-      console.warn("userId storage unavailable", err);
-    }
+    } catch {}
   }
   return "";
-}
-
-function resolveStoredCsrf() {
-  if (cachedCsrf) return cachedCsrf;
-
-  // 1) meta tag
-  if (typeof document !== "undefined") {
-    const meta = document.querySelector('meta[name="csrf-token"]');
-    if (meta?.content) {
-      cachedCsrf = meta.content;
-      return cachedCsrf;
-    }
-  }
-
-  // 2) window global
-  if (typeof window !== "undefined" && window.__CSRF_TOKEN__) {
-    cachedCsrf = window.__CSRF_TOKEN__;
-    return cachedCsrf;
-  }
-
-  // 3) localStorage
-  if (typeof window !== "undefined") {
-    try {
-      const stored = localStorage.getItem("csrfToken");
-      if (stored) {
-        cachedCsrf = stored;
-        return stored;
-      }
-    } catch (err) {
-      console.warn("csrf storage unavailable", err);
-    }
-  }
-
-  return "";
-}
-
-function persistCsrf(token) {
-  if (!token) return;
-  cachedCsrf = token;
-  if (typeof window !== "undefined") {
-    window.__CSRF_TOKEN__ = token;
-    try {
-      localStorage.setItem("csrfToken", token);
-    } catch (err) {
-      console.warn("localStorage save failed", err);
-    }
-  }
 }
 
 export function setUserId(id) {
@@ -87,64 +98,16 @@ export function setUserId(id) {
     window.USER_ID = id;
     try {
       localStorage.setItem("userId", id);
-    } catch (err) {
-      console.warn("unable to persist userId", err);
-    }
+    } catch {}
   }
-}
-
-export async function ensureCsrfToken() {
-  const existing = resolveStoredCsrf();
-  if (existing) return existing;
-  if (csrfPromise) return csrfPromise;
-
-  csrfPromise = (async () => {
-    try {
-      const res = await fetch(`${API_BASE}/api/csrf`, {
-        method: "GET",
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error(`CSRF fetch failed: ${res.status}`);
-
-      const data = await res.json().catch(() => ({}));
-      const headerToken =
-        res.headers.get("x-csrf-token") ||
-        res.headers.get("csrf-token") ||
-        res.headers.get("x-xsrf-token") ||
-        res.headers.get("xsrf-token");
-
-      const bodyToken = data?.csrfToken;
-      const token = headerToken || bodyToken;
-      if (token) persistCsrf(token);
-
-      return cachedCsrf || "";
-    } catch (err) {
-      console.error("CSRF fetch error:", err);
-      return "";
-    } finally {
-      csrfPromise = null;
-    }
-  })();
-
-  return csrfPromise;
 }
 
 export function AUTH_HEADERS(extra = {}) {
   const headers = { ...extra };
-
   const uid = resolveStoredUserId();
   if (uid) headers["x-user-id"] = uid;
-
-  const csrf = resolveStoredCsrf();
-  if (csrf) {
-    headers["CSRF-Token"] = csrf;
-    headers["X-XSRF-TOKEN"] = csrf;
-    headers["XSRF-TOKEN"] = csrf;
-    headers["x-xsrf-token"] = csrf;
-    headers["x-csrf-token"] = csrf;
-    headers["x-csrf-token"] = csrf;
-  }
-
+  const csrf = resolveCsrf();
+  if (csrf) headers[CSRF_HEADER] = csrf;
   return headers;
 }
 
@@ -152,7 +115,6 @@ export async function apiFetch(path, options = {}) {
   await ensureCsrfToken();
   const url = `${API_BASE}${path}`;
   const mergedHeaders = AUTH_HEADERS(options.headers);
-
   return fetch(url, {
     credentials: "include",
     ...options,
