@@ -80,6 +80,13 @@
       display:grid; place-items:center; cursor:pointer;
     }
     .avatar-btn:hover{background:rgba(0,0,0,.08)}
+    .avatar-del{
+      position:absolute; left:6px; bottom:6px;
+      width:34px; height:34px; border-radius:50%;
+      border:1px solid var(--line); background:rgba(255,0,0,.08); color:#d00;
+      display:grid; place-items:center; cursor:pointer;
+    }
+    .avatar-del:hover{background:rgba(255,0,0,.14)}
 
     .profile-meta{flex:1; min-width:0;}
     .nickname{font-size:22px; font-weight:700; margin:0 0 4px;}
@@ -267,6 +274,12 @@
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="10"/>
               <path d="M12 8v8M8 12h8"/>
+            </svg>
+          </button>
+          <button class="avatar-del" id="avatarDelBtn" type="button" aria-label="아바타 삭제" title="프로필 사진 삭제" style="display:none;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+              <line x1="6" y1="18" x2="18" y2="6"></line>
             </svg>
           </button>
           <input type="file" id="avatarInput" accept="image/*" style="display:none" />

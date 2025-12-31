@@ -5,11 +5,25 @@ const $ = (sel) => document.querySelector(sel);
 let diaryMap = new Map();
 let pendingRequests = [];
 let friendList = [];
+const avatarSvgs = [
+  `<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M32 8L38 10L40 16L38 54L32 56L26 54L24 16L26 10Z" stroke="#111" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><rect x="26" y="4" width="12" height="6" rx="1" stroke="#111" stroke-width="2" fill="none"/><line x1="26" y1="7" x2="38" y2="7" stroke="#111" stroke-width="1.5"/><path d="M28 54L32 60L36 54" fill="#111" stroke="#111" stroke-width="2" stroke-linejoin="round"/><line x1="24" y1="20" x2="24" y2="48" stroke="#111" stroke-width="2"/><line x1="40" y1="20" x2="40" y2="48" stroke="#111" stroke-width="2"/></svg>`,
+  `<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="28" y="8" width="8" height="48" rx="1" stroke="#111" stroke-width="2.5"/><rect x="28" y="8" width="8" height="12" rx="1" stroke="#111" stroke-width="2.5" fill="none"/><path d="M36 8C38 8 40 10 40 12C40 14 40 16 40 18" stroke="#111" stroke-width="2" stroke-linecap="round"/><circle cx="40" cy="18" r="1.5" fill="#111"/><line x1="28" y1="24" x2="36" y2="24" stroke="#111" stroke-width="1.5"/><line x1="28" y1="28" x2="36" y2="28" stroke="#111" stroke-width="1.5"/><line x1="28" y1="32" x2="36" y2="32" stroke="#111" stroke-width="1.5"/><path d="M28 56L30 60L32 62L34 60L36 56" stroke="#111" stroke-width="2.5" stroke-linejoin="round"/><line x1="32" y1="60" x2="32" y2="62" stroke="#111" stroke-width="2"/></svg>`,
+  `<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="28" y="4" width="8" height="14" rx="1" stroke="#111" stroke-width="2.5" fill="none"/><path d="M36 6C38 6 40 7 40 9C40 11 40 14 40 16" stroke="#111" stroke-width="2" stroke-linecap="round"/><circle cx="40" cy="16" r="1.5" fill="#111"/><rect x="29" y="18" width="6" height="30" rx="1" stroke="#111" stroke-width="2.5"/><rect x="30" y="22" width="4" height="10" stroke="#111" stroke-width="1.5" fill="none"/><line x1="30" y1="26" x2="34" y2="26" stroke="#111" stroke-width="1"/><path d="M29 48L28 52L30 58L32 60L34 58L36 52L35 48Z" stroke="#111" stroke-width="2.5" stroke-linejoin="round"/><line x1="32" y1="52" x2="32" y2="60" stroke="#111" stroke-width="1.5"/><circle cx="32" cy="54" r="1" fill="#111"/></svg>`,
+  `<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="26" y="4" width="12" height="10" rx="2" stroke="#111" stroke-width="2.5" fill="none"/><line x1="28" y1="9" x2="36" y2="9" stroke="#111" stroke-width="1.5"/><rect x="27" y="14" width="10" height="36" rx="2" stroke="#111" stroke-width="2.5"/><line x1="27" y1="20" x2="37" y2="20" stroke="#111" stroke-width="2"/><line x1="27" y1="24" x2="37" y2="24" stroke="#111" stroke-width="2"/><circle cx="32" cy="32" r="4" stroke="#111" stroke-width="2"/><line x1="30" y1="32" x2="34" y2="32" stroke="#111" stroke-width="1.5"/><path d="M27 50L27 54L29 58L32 60L35 58L37 54L37 50Z" stroke="#111" stroke-width="2.5" stroke-linejoin="round"/><rect x="29" y="54" width="6" height="4" fill="#111"/></svg>`
+];
+
+function defaultAvatar(seed = "user") {
+  let hash = 0;
+  for (const ch of seed) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  const idx = hash % avatarSvgs.length;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(avatarSvgs[idx])}`;
+}
 
 const els = {
   avatarImg: $("#avatarImg"),
   avatarBtn: $("#avatarBtn"),
   avatarInput: $("#avatarInput"),
+  avatarDelBtn: $("#avatarDelBtn"),
   nickname: $("#nickname"),
   username: $("#username"),
   bio: $("#bio"),
@@ -35,6 +49,7 @@ const els = {
 };
 
 const dow = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+let currentUser = null;
 
 function safeJson(res) {
   return res.json().catch(() => ({}));
@@ -95,10 +110,14 @@ async function fetchFriends() {
 }
 
 function renderProfile(user) {
-  if (els.avatarImg) els.avatarImg.src = user.avatar_url || "/image/avatar-default.png";
-  if (els.nickname) els.nickname.textContent = user.nickname || "닉네임 없음";
-  if (els.username) els.username.textContent = user.username ? `@${user.username}` : "";
-  if (els.bio) els.bio.textContent = user.bio || "소개가 없습니다.";
+  currentUser = { ...(currentUser || {}), ...user };
+  const hasCustomAvatar = !!currentUser.avatar_url;
+  const avatar = hasCustomAvatar ? currentUser.avatar_url : defaultAvatar(currentUser.id || currentUser.username || "user");
+  if (els.avatarImg) els.avatarImg.src = avatar;
+  if (els.nickname) els.nickname.textContent = currentUser.nickname || "닉네임 없음";
+  if (els.username) els.username.textContent = currentUser.username ? `@${currentUser.username}` : "";
+  if (els.bio) els.bio.textContent = currentUser.bio || "소개가 없습니다.";
+  if (els.avatarDelBtn) els.avatarDelBtn.style.display = hasCustomAvatar ? "grid" : "none";
 }
 
 function formatMeta(entry) {
@@ -250,11 +269,12 @@ function renderRequests(list) {
   } else {
     els.requestsView.innerHTML = "";
     list.forEach((r) => {
+      const avatar = r.avatar_url || defaultAvatar(r.id || r.username || "user");
       const card = document.createElement("div");
       card.className = "timeline-item";
       card.innerHTML = `
         <div class="timeline-content" style="align-items:center; gap:12px;">
-          <img class="timeline-thumb" src="${r.avatar_url || "/image/avatar-default.png"}" alt="${r.nickname || r.username}" />
+          <img class="timeline-thumb" src="${avatar}" alt="${r.nickname || r.username}" />
           <div class="timeline-text-preview">
             <div class="timeline-text" style="font-weight:700;">${r.nickname || r.username || "사용자"}</div>
             <div class="timeline-meta">@${r.username || ""}</div>
@@ -296,12 +316,13 @@ function renderFriends(list) {
   }
   els.friendsView.innerHTML = "";
   list.forEach((f) => {
+    const avatar = f.avatar_url || defaultAvatar(f.id || f.username || "user");
     const a = document.createElement("a");
     a.className = "timeline-item";
     a.href = `/otherprofile.html?id=${encodeURIComponent(f.id)}&username=${encodeURIComponent(f.username)}`;
     a.innerHTML = `
       <div class="timeline-content" style="align-items:center; gap:12px;">
-        <img class="timeline-thumb" src="${f.avatar_url || "/image/avatar-default.png"}" alt="${f.nickname || f.username}" />
+        <img class="timeline-thumb" src="${avatar}" alt="${f.nickname || f.username}" />
         <div class="timeline-text-preview">
           <div class="timeline-text" style="font-weight:700;">${f.nickname || f.username || "사용자"}</div>
           <div class="timeline-meta">@${f.username || ""}</div>
@@ -391,7 +412,42 @@ async function uploadAvatar(file) {
   });
   const data = await safeJson(res);
   if (!res.ok) throw new Error(data?.error || "업로드에 실패했습니다.");
-  if (els.avatarImg && data.avatar_url) els.avatarImg.src = data.avatar_url;
+  if (data.avatar_url) {
+    currentUser = { ...(currentUser || {}), avatar_url: data.avatar_url };
+    if (els.avatarImg) els.avatarImg.src = data.avatar_url;
+    if (els.avatarDelBtn) els.avatarDelBtn.style.display = "grid";
+  }
+}
+
+function bindAvatarDelete() {
+  if (!els.avatarDelBtn) return;
+  els.avatarDelBtn.addEventListener("click", async () => {
+    if (!currentUser?.avatar_url) {
+      alert("기본 프로필은 삭제할 수 없습니다.");
+      return;
+    }
+    if (!confirm("프로필 사진을 삭제할까요?")) return;
+    try {
+      await deleteAvatar();
+    } catch (err) {
+      alert(err.message || "삭제에 실패했습니다.");
+    }
+  });
+}
+
+async function deleteAvatar() {
+  const token = await ensureCsrfToken();
+  const res = await apiFetch(`/api/users/me/avatar`, {
+    method: "DELETE",
+    credentials: "include",
+    headers: AUTH_HEADERS({ "CSRF-Token": token }),
+  });
+  const data = await safeJson(res);
+  if (!res.ok) throw new Error(data?.error || "삭제에 실패했습니다.");
+  currentUser = { ...(currentUser || {}), avatar_url: null };
+  const fallback = defaultAvatar(currentUser.id || currentUser.username || "user");
+  if (els.avatarImg) els.avatarImg.src = fallback;
+  if (els.avatarDelBtn) els.avatarDelBtn.style.display = "none";
 }
 
 async function loadDiaries(userId) {
@@ -436,6 +492,7 @@ async function loadDiaries(userId) {
     bindTabs();
     bindViewer();
     bindAvatarUpload();
+    bindAvatarDelete();
     await loadDiaries(session.userId);
     const reqs = await fetchPendingRequests();
     renderRequests(reqs);

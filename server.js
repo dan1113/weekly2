@@ -444,6 +444,30 @@ app.post(
   }
 );
 
+app.delete("/api/users/me/avatar", csrfProtection, authRequired, async (req, res) => {
+  try {
+    const row = await db.get(`SELECT avatar_url FROM users WHERE id = ?`, [req.user.id]);
+    const current = row?.avatar_url;
+    if (!current) return res.status(400).json({ error: "기본 프로필은 삭제할 수 없습니다." });
+
+    // best-effort 파일 삭제
+    try {
+      if (current.startsWith("/uploads/")) {
+        const filePath = path.join(__dirname, "public", current.replace(/^\//, ""));
+        await fs.promises.unlink(filePath);
+      }
+    } catch (e) {
+      console.warn("avatar delete (file) skipped:", e.message);
+    }
+
+    await db.run(`UPDATE users SET avatar_url = NULL WHERE id = ?`, [req.user.id]);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "삭제 실패" });
+  }
+});
+
 app.get("/api/users/search", authRequired, async (req, res) => {
   const q = String(req.query.q || "").trim();
   if (!q) return res.json({ users: [] });

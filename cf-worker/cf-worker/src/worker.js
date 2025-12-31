@@ -731,6 +731,18 @@ async function handleRequest(request, env) {
     if (!userId) return withCors(new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 }), request, env);
     return withCors(await handleProfileAvatar(request, env, userId), request, env);
   }
+  if ((path === '/api/profile/avatar' || path === '/api/users/me/avatar') && method === 'DELETE') {
+    if (!userId) return withCors(new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 }), request, env);
+    await ensureSchema(env);
+    const row = await runWithRetries(db =>
+      db.prepare('SELECT avatar_url FROM users WHERE id = ?').bind(userId).first(), env);
+    if (!row || !row.avatar_url) {
+      return withCors(new Response(JSON.stringify({ error: '기본 프로필은 삭제할 수 없습니다.' }), { status: 400 }), request, env);
+    }
+    await runWithRetries(db =>
+      db.prepare('UPDATE users SET avatar_url = NULL WHERE id = ?').bind(userId).run(), env);
+    return withCors(new Response(JSON.stringify({ ok: true }), { status: 200 }), request, env);
+  }
 
   // User search (for friends lookup)
   if (path === '/api/users/search' && method === 'GET') {
