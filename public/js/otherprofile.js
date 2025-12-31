@@ -55,8 +55,16 @@ async function postJson(path, payload) {
   }
   const { user, relation } = await safeJson(userRes);
   renderProfile(user);
-  renderGallery(user.id);
-  renderTimeline(user.id);
+  const isFriend = relation?.status === "accepted";
+  if (isFriend || me.userId === id) {
+    renderGallery(user.id);
+    renderTimeline(user.id);
+  } else {
+    const gallery = $("#gallery");
+    const tl = $("#timeline");
+    if (gallery) gallery.innerHTML = `<div class="viewer-text empty">친구만 볼 수 있습니다.</div>`;
+    if (tl) tl.innerHTML = `<div class="viewer-text empty">친구만 볼 수 있습니다.</div>`;
+  }
   setupFriendButtons(me, relation, id);
 })();
 

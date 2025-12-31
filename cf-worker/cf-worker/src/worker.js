@@ -768,21 +768,58 @@ async function handleRequest(request, env) {
     if (!userId) return withCors(new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 }), request, env);
     const targetId = path.split('/').pop();
     if (!targetId) return withCors(new Response(JSON.stringify({ error: 'Bad Request' }), { status: 400 }), request, env);
-  try {
-    await ensureSchema(env);
-    const row = await runWithRetries(db =>
-      db.prepare('SELECT id, username, nickname, avatar_url, bio, created_at FROM users WHERE id = ?')
-        .bind(targetId).first(), env);
-    if (!row) return withCors(new Response(JSON.stringify({ error: '존재하지 않는 사용자' }), { status: 404 }), request, env);
-    const fr = await runWithRetries(db =>
-      db.prepare(`SELECT status, requester_id, addressee_id FROM friends WHERE (requester_id = ? AND addressee_id = ?) OR (requester_id = ? AND addressee_id = ?)`)
-        .bind(userId, targetId, targetId, userId).first(), env);
-    return withCors(new Response(JSON.stringify({ user: row, relation: fr || null }), { status: 200 }), request, env);
-  } catch (e) {
-    console.error('user fetch error', e);
-    return withCors(new Response(JSON.stringify({ error: 'Internal Server Error' }), { status: 500 }), request, env);
+    try {
+      await ensureSchema(env);
+      const row = await runWithRetries(db =>
+        db.prepare('SELECT id, username, nickname, avatar_url, bio, created_at FROM users WHERE id = ?')
+          .bind(targetId).first(), env);
+      if (!row) return withCors(new Response(JSON.stringify({ error: '존재하지 않는 사용자' }), { status: 404 }), request, env);
+      const fr = await runWithRetries(db =>
+        db.prepare(`SELECT status, requester_id, addressee_id FROM friends WHERE (requester_id = ? AND addressee_id = ?) OR (requester_id = ? AND addressee_id = ?)`)
+          .bind(userId, targetId, targetId, userId).first(), env);
+      return withCors(new Response(JSON.stringify({ user: row, relation: fr || null }), { status: 200 }), request, env);
+    } catch (e) {
+      console.error('user fetch error', e);
+      return withCors(new Response(JSON.stringify({ error: 'Internal Server Error' }), { status: 500 }), request, env);
+    }
   }
-}
+
+  // Timeline summary (lightweight)
+  if (path === '/api/diary/timeline' && method === 'GET') {
+    if (!userId) return withCors(new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 }), request, env);
+    const targetId = url.searchParams.get('userId') || userId;
+    const limit = Math.max(1, Math.min(60, Number(url.searchParams.get('limit') || '15')));
+    await ensureSchema(env);
+    // friend check
+    if (targetId !== userId) {
+      const fr = await runWithRetries(db =>
+        db.prepare(`SELECT 1 FROM friends WHERE status='accepted' AND ((requester_id = ? AND addressee_id = ?) OR (requester_id = ? AND addressee_id = ?))`)
+          .bind(userId, targetId, targetId, userId).first(), env);
+      if (!fr) return withCors(new Response(JSON.stringify({ error: '친구에게만 공개된 내용입니다.' }), { status: 403 }), request, env);
+    }
+    try {
+      // 우선 diary_entries 기반으로 썸네일/텍스트만 경량 조회
+      const rows = await runWithRetries(db =>
+        db.prepare(`
+          SELECT e.date,
+                 substr(coalesce(e.text,''),1,200) as text_preview,
+                 COALESCE(e.thumbnail_url,
+                   (SELECT p.image_url FROM diary_photos p WHERE p.entry_id = e.id ORDER BY p.order_index LIMIT 1)
+                 ) AS thumbnail_url,
+                 (SELECT COUNT(*) FROM diary_photos p2 WHERE p2.entry_id = e.id) AS photo_count
+            FROM diary_entries e
+           WHERE e.user_id = ?
+           ORDER BY e.date DESC
+           LIMIT ?
+        `).bind(targetId, limit).all(), env);
+
+      return withCors(new Response(JSON.stringify({ items: rows.results || [] }), { status: 200 }), request, env);
+    } catch (e) {
+      console.error('timeline error', e);
+      // 에러 시 빈 리스트 반환하여 UI가 계속 동작하도록
+      return withCors(new Response(JSON.stringify({ items: [] }), { status: 200 }), request, env);
+    }
+  }
 
   // Friends pending list (alerts)
   if (path === '/api/friends/pending' && method === 'GET') {
@@ -977,6 +1014,13 @@ async function handleRequest(request, env) {
     const targetId = parts[2];
     const limit = Math.max(1, Math.min(100, Number(url.searchParams.get('limit') || '60')));
     await ensureSchema(env);
+    // 친구 여부 확인
+    if (targetId !== userId) {
+      const fr = await runWithRetries(db =>
+        db.prepare(`SELECT 1 FROM friends WHERE status='accepted' AND ((requester_id = ? AND addressee_id = ?) OR (requester_id = ? AND addressee_id = ?))`)
+          .bind(userId, targetId, targetId, userId).first(), env);
+      if (!fr) return withCors(new Response(JSON.stringify({ error: '친구에게만 공개된 내용입니다.' }), { status: 403 }), request, env);
+    }
     const rows = await runWithRetries(db =>
       db.prepare(`SELECT date, base64_data as image_data, mime_type, order_index FROM diary_photos WHERE user_id = ? ORDER BY date DESC, order_index ASC LIMIT ?`)
         .bind(targetId, limit).all(), env);

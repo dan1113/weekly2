@@ -1,8 +1,10 @@
-﻿import { API_BASE, AUTH_HEADERS, apiFetch, ensureCsrfToken, setUserId } from "./config.js";
+﻿import { AUTH_HEADERS, apiFetch, ensureCsrfToken, setUserId } from "./config.js";
 
 const $ = (sel) => document.querySelector(sel);
 
 let diaryMap = new Map();
+let pendingRequests = [];
+let friendList = [];
 
 const els = {
   avatarImg: $("#avatarImg"),
@@ -15,9 +17,8 @@ const els = {
   photoCount: $("#photoCount"),
   friendCount: $("#friendCount"),
   timelineView: $("#timelineView"),
-  calendarView: $("#calendarView"),
   tabList: $("#tabList"),
-  tabCalendar: $("#tabCalendar"),
+  tabFriends: $("#tabFriends"),
   tabAlerts: $("#tabAlerts"),
   alertBadge: $("#alertBadge"),
   requestsView: $("#requestsView"),
@@ -34,8 +35,6 @@ const els = {
 };
 
 const dow = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-let pendingRequests = [];
-let friendList = [];
 
 function safeJson(res) {
   return res.json().catch(() => ({}));
@@ -57,24 +56,12 @@ async function fetchUser(userId) {
   return data.user || data;
 }
 
-async function fetchPhotoDiaries(userId, limit = 120) {
-  try {
-    const res = await apiFetch(`/api/diary/${encodeURIComponent(userId)}/photos?limit=${limit}`, { credentials: "include" });
-    const data = await safeJson(res);
-    if (res.status === 401 || res.status === 404) return [];
-    if (!res.ok) throw new Error(data?.error || "사진 목록을 불러오지 못했습니다.");
-    return data.items || [];
-  } catch (err) {
-    console.warn("photo diary list fallback", err?.message || err);
-    return [];
-  }
-}
-
-async function fetchOverview(year, month) {
-  const res = await apiFetch(`/api/calendar/overview?year=${year}&month=${month}`, { credentials: "include" });
+async function fetchTimeline(userId, limit = 15) {
+  const qs = userId ? `?userId=${encodeURIComponent(userId)}&limit=${limit}` : `?limit=${limit}`;
+  const res = await apiFetch(`/api/diary/timeline${qs}`, { credentials: "include" });
   const data = await safeJson(res);
-  if (!res.ok) throw new Error(data?.error || "달력 데이터를 불러오지 못했습니다.");
-  return data.days || [];
+  if (!res.ok) throw new Error(data?.error || "타임라인을 불러오지 못했습니다.");
+  return data.items || [];
 }
 
 async function fetchDay(dateStr) {
@@ -154,13 +141,14 @@ function renderTimeline(list) {
         const btn = document.createElement("button");
         btn.className = "timeline-item";
         btn.dataset.date = entry.date;
+        const thumb = entry.photos?.[0] || entry.thumbnail_url || "";
         btn.innerHTML = `
           <div class="timeline-date">
             <div class="timeline-date-day">${dt.getDate()}</div>
             <div class="timeline-date-dow">${dow[dt.getDay()]}</div>
           </div>
           <div class="timeline-content">
-            ${entry.photos?.[0] ? `<img class="timeline-thumb" src="${entry.photos[0]}" alt="${entry.date} 사진" />` : `<div class="timeline-thumb" style="display:grid;place-items:center;color:rgba(0,0,0,.35);font-size:12px;">No Image</div>`}
+            ${thumb ? `<img class="timeline-thumb" src="${thumb}" alt="${entry.date} 사진" />` : `<div class="timeline-thumb" style="display:grid;place-items:center;color:rgba(0,0,0,.35);font-size:12px;">No Image</div>`}
             <div class="timeline-text-preview">
               <div class="timeline-text">${(entry.text || "작성된 내용이 없습니다.").replace(/\n+/g, " ").slice(0, 140)}</div>
               <div class="timeline-meta">${formatMeta(entry)}</div>
@@ -346,32 +334,29 @@ async function respondFriend(fromUserId, action) {
 }
 
 function bindTabs() {
-  if (els.tabList && els.tabCalendar) {
+  if (els.tabList && els.tabFriends) {
     els.tabList.addEventListener("click", () => {
       els.tabList.classList.add("active");
-      els.tabCalendar.classList.remove("active");
+      els.tabFriends.classList.remove("active");
       els.tabAlerts?.classList.remove("active");
       if (els.friendsView) els.friendsView.style.display = "none";
       if (els.timelineView) els.timelineView.style.display = "flex";
-      if (els.calendarView) els.calendarView.style.display = "none";
       if (els.requestsView) els.requestsView.style.display = "none";
     });
-    els.tabCalendar.addEventListener("click", () => {
-      els.tabCalendar.classList.add("active");
+    els.tabFriends.addEventListener("click", () => {
+      els.tabFriends.classList.add("active");
       els.tabList.classList.remove("active");
       els.tabAlerts?.classList.remove("active");
-      if (els.friendsView) els.friendsView.style.display = "none";
       if (els.timelineView) els.timelineView.style.display = "none";
-      if (els.calendarView) els.calendarView.style.display = "block";
+      if (els.friendsView) els.friendsView.style.display = "flex";
       if (els.requestsView) els.requestsView.style.display = "none";
     });
     els.tabAlerts?.addEventListener("click", () => {
       els.tabAlerts.classList.add("active");
       els.tabList.classList.remove("active");
-      els.tabCalendar.classList.remove("active");
-      if (els.friendsView) els.friendsView.style.display = "flex";
+      els.tabFriends.classList.remove("active");
+      if (els.friendsView) els.friendsView.style.display = "none";
       if (els.timelineView) els.timelineView.style.display = "none";
-      if (els.calendarView) els.calendarView.style.display = "none";
       if (els.requestsView) els.requestsView.style.display = "flex";
     });
   }
@@ -409,83 +394,26 @@ async function uploadAvatar(file) {
   if (els.avatarImg && data.avatar_url) els.avatarImg.src = data.avatar_url;
 }
 
-async function collectDiaryDates() {
-  const dates = new Set();
-  const now = new Date();
-  const targets = [0, -1, -2].map((offset) => {
-    const d = new Date(now.getFullYear(), now.getMonth() + offset, 1);
-    return { y: d.getFullYear(), m: d.getMonth() + 1 };
-  });
-  for (const { y, m } of targets) {
-    const days = await fetchOverview(y, m);
-    (days || [])
-      .filter((d) => d.hasDiary || d.diaryThumb || d.diaryCount)
-      .forEach((d) => dates.add(d.date));
-  }
-  return dates;
-}
-
 async function loadDiaries(userId) {
   diaryMap = new Map();
-
+  let timelineItems = [];
   try {
-    const candidateDates = new Set();
-
-    const photoRows = await fetchPhotoDiaries(userId, 180);
-    photoRows.forEach((row) => {
-      const date = String(row.date || "").slice(0, 10);
-      if (!date) return;
-      candidateDates.add(date);
-      const found = diaryMap.get(date) || { date, text: "", photos: [] };
-      if (!found.text && row.text) found.text = row.text;
-      const img = row.image_data || row.image_url;
-      if (img) found.photos.push(img);
-      diaryMap.set(date, found);
+    timelineItems = await fetchTimeline(userId, 15);
+    timelineItems.forEach((item) => {
+      const photos = [];
+      if (item.thumbnail_url) photos.push(item.thumbnail_url);
+      diaryMap.set(item.date, {
+        date: item.date,
+        text: item.text_preview || "",
+        photos,
+      });
     });
-
-    const overviewDates = await collectDiaryDates();
-    overviewDates.forEach((d) => candidateDates.add(d));
-
-  if (!candidateDates.size) {
-    const today = new Date();
-    for (let i = 0; i < 30; i++) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      const dateStr = d.toISOString().slice(0, 10);
-      candidateDates.add(dateStr);
-    }
-  }
-
-  // 가장 최근 날짜부터 최대 60일치만 병렬(적은 동시성)로 불러온다.
-  const datesToFetch = Array.from(candidateDates)
-    .sort()
-    .reverse()
-    .filter((date) => !(diaryMap.has(date) && diaryMap.get(date).text))
-    .slice(0, 60);
-
-  const chunkSize = 5;
-  for (let i = 0; i < datesToFetch.length; i += chunkSize) {
-    const chunk = datesToFetch.slice(i, i + chunkSize);
-    await Promise.all(
-      chunk.map(async (date) => {
-        try {
-          const data = await fetchDay(date);
-          if (data?.entry || (data?.photos || []).length) {
-            const photos = (data.photos || []).map((p) => p.base64_data || p.image_data || p.image_url || p.url).filter(Boolean);
-            diaryMap.set(date, { date, text: data.entry?.text || "", photos });
-          }
-        } catch (err) {
-          console.warn("일기 로드 실패:", date, err);
-        }
-      })
-    );
-  }
   } catch (err) {
-    console.warn("다이어리 로드 실패:", err);
+    console.warn("타임라인 로드 실패:", err);
   }
 
   const list = Array.from(diaryMap.values()).sort((a, b) => b.date.localeCompare(a.date));
-  const photoCount = list.reduce((acc, cur) => acc + (cur.photos?.length || 0), 0);
+  const photoCount = (timelineItems || []).reduce((acc, cur) => acc + (cur.photo_count || 0), 0);
 
   if (els.diaryCount) els.diaryCount.textContent = String(list.length);
   if (els.photoCount) els.photoCount.textContent = String(photoCount);

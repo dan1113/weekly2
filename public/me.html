@@ -286,7 +286,7 @@
 
       <div class="profile-tabs">
         <button class="profile-tab active" data-tab="list" id="tabList">타임라인</button>
-        <button class="profile-tab" data-tab="calendar" id="tabCalendar">캘린더</button>
+        <button class="profile-tab" data-tab="friends" id="tabFriends">친구</button>
         <button class="profile-tab" data-tab="alerts" id="tabAlerts">알림<span id="alertBadge" style="display:none;margin-left:6px;border-radius:10px;padding:2px 6px;background:#111;color:#fff;font-size:11px;"></span></button>
       </div>
     </div>
@@ -295,16 +295,12 @@
       <div class="empty-state">일기를 불러오는 중입니다...</div>
     </div>
 
-    <div class="calendar-view" id="calendarView" style="display:none;">
-      <div class="empty-state">캘린더 뷰는 준비 중입니다.</div>
+    <div class="timeline-container" id="friendsView" style="display:none;">
+      <div class="empty-state">친구가 없습니다.</div>
     </div>
 
     <div class="timeline-container" id="requestsView" style="display:none;">
       <div class="empty-state">새 친구 요청이 없습니다.</div>
-    </div>
-
-    <div class="timeline-container" id="friendsView" style="display:none;">
-      <div class="empty-state">친구가 없습니다.</div>
     </div>
   </main>
 

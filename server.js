@@ -478,6 +478,17 @@ app.get("/api/users/:id", authRequired, async (req, res) => {
   res.json({ user: row, relation: fr || null });
 });
 
+async function isFriend(a, b) {
+  const fr = await db.get(
+    `SELECT 1 FROM friends
+      WHERE status='accepted' AND
+            ((requester_id = ? AND addressee_id = ?)
+          OR (requester_id = ? AND addressee_id = ?))`,
+    [a, b, b, a]
+  );
+  return !!fr;
+}
+
 /* -------------------- Friends APIs -------------------- */
 app.post("/api/friends/request", csrfProtection, authRequired, async (req, res) => {
   const me = req.user.id;
@@ -706,6 +717,11 @@ app.post("/api/diary", csrfProtection, authRequired, (req, res) => {
 
 app.get("/api/diary/:userId/photos", authRequired, async (req, res) => {
   const limit = Math.max(1, Math.min(100, parseInt(req.query.limit || "60", 10)));
+  const targetId = String(req.params.userId);
+  if (targetId !== req.user.id) {
+    const ok = await isFriend(req.user.id, targetId);
+    if (!ok) return res.status(403).json({ error: "친구에게만 공개된 내용입니다." });
+  }
   const rows = await db.all(
     `SELECT p.image_url, p.image_data, e.date, e.text, p.order_index
        FROM diary_photos p
@@ -713,9 +729,38 @@ app.get("/api/diary/:userId/photos", authRequired, async (req, res) => {
       WHERE e.user_id = ?
       ORDER BY e.date DESC, p.order_index ASC
       LIMIT ?`,
-    [req.params.userId, limit]
+    [targetId, limit]
   );
   res.json({ items: rows });
+});
+
+// Timeline summary (lightweight)
+app.get("/api/diary/timeline", authRequired, async (req, res) => {
+  try {
+    const limit = Math.max(1, Math.min(60, parseInt(req.query.limit || "15", 10)));
+    const targetId = req.query.userId ? String(req.query.userId) : req.user.id;
+    if (targetId !== req.user.id) {
+      const ok = await isFriend(req.user.id, targetId);
+      if (!ok) return res.status(403).json({ error: "친구에게만 공개된 내용입니다." });
+    }
+    const rows = await db.all(
+      `SELECT e.date,
+              substr(coalesce(e.text,''),1,200) as text_preview,
+              COALESCE(e.thumbnail_url, MIN(p.image_url)) AS thumbnail_url,
+              COUNT(p.id) AS photo_count
+         FROM diary_entries e
+         LEFT JOIN diary_photos p ON p.entry_id = e.id
+        WHERE e.user_id = ?
+        GROUP BY e.date, e.text, e.thumbnail_url
+        ORDER BY e.date DESC
+        LIMIT ?`,
+      [targetId, limit]
+    );
+    res.json({ items: rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "타임라인을 불러오지 못했습니다." });
+  }
 });
 
 app.get("/api/diary/day/:date", authRequired, async (req, res) => {

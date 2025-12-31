@@ -10,7 +10,7 @@
   bar.className = "navbar";
   bar.innerHTML = `
     <a class="navbtn" data-key="search" href="${toSearch}" aria-label="검색">
-      <strong>검색\n(비활성)</strong>
+      <strong>검색</strong>
       <span>friends</span>
     </a>
     <a class="navbtn" data-key="calendar" href="${toCalendar}" aria-label="캘린더">
@@ -18,7 +18,7 @@
       <span>calendar</span>
     </a>
     <a class="navbtn" data-key="profile" href="${toProfile}" aria-label="내 프로필">
-      <strong>내 프로필\n(비활성)</strong>
+      <strong>내 프로필</strong>
       <span>me</span>
     </a>
   `;
