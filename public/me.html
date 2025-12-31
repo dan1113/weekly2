@@ -3,46 +3,335 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>내 프로필</title>
-  <link rel="stylesheet" href="/style.css" />
-  <script src="/js/bootstrap.js"></script>
+  <title>내 프로필 - Weekly</title>
   <style>
-    :root { --line: rgba(0,0,0,.14); --muted: rgba(0,0,0,.55); }
-    body { margin:0; background:#fff; color:#111; font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif; }
-    .wrap { max-width:520px; margin:0 auto; padding:18px 18px calc(18px + env(safe-area-inset-bottom)); }
-    .card { border:1px solid var(--line); border-radius:18px; padding:18px; background:#fff; }
-    .row { display:flex; align-items:center; gap:16px; }
-    .avatar { width:84px; height:84px; border-radius:999px; object-fit:cover; border:1px solid var(--line); background:#f3f3f3; }
-    .nick { font-size:20px; font-weight:700; }
-    .user { font-size:13px; color:var(--muted); }
-    .btn { margin-left:auto; border:1px solid var(--line); border-radius:14px; padding:10px 16px; background:#111; color:#fff; cursor:pointer; }
-    .sec { margin-top:18px; border:1px solid var(--line); border-radius:14px; padding:14px; background:#fafafa; }
-    .label { font-size:12px; color:var(--muted); margin-bottom:8px; }
-    .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
-    .grid img { width:100%; height:120px; object-fit:cover; border-radius:10px; }
+    :root{
+      --bg:#f7f7f8; --fg:#111; --muted:rgba(0,0,0,.55); --line:rgba(0,0,0,.12);
+      --card:#fff; --tap:52px;
+      --nav-h: 64px;
+      --radius: 16px;
+    }
+
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    html,body{height:100%}
+    body{
+      margin:0; background:var(--bg); color:var(--fg);
+      font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",Inter,system-ui,sans-serif;
+      display:flex; min-height:100svh;
+      padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
+    }
+
+    .wrap{
+      margin:auto; width:min(720px,94%);
+      padding:28px 18px 34px;
+      border:1px solid var(--line);
+      border-radius:20px;
+      background:linear-gradient(180deg, #fff 0%, #f3f3f5 100%);
+      box-shadow: 0 10px 30px rgba(17,17,17,.08);
+    }
+
+    .profile-sticky{
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      padding-bottom: 14px;
+      background: linear-gradient(180deg, #fff 0%, rgba(255,255,255,.95) 35%, rgba(247,247,248,.9) 100%);
+      backdrop-filter: blur(4px);
+      box-shadow: 0 10px 20px rgba(17,17,17,.06);
+    }
+
+    .brand{display:flex; align-items:center; gap:12px; margin-bottom:14px}
+    .brand .dot{flex:0 0 8px; width:8px; height:8px; border-radius:50%; background:#111; opacity:.85}
+    .brand h1{margin:0; font-size:22px; letter-spacing:.4px}
+
+    h2{margin:6px 0 8px; font-size:28px; letter-spacing:.2px}
+    .sub{margin:0 0 18px; color:var(--muted); font-size:13px}
+
+    .header{
+      display:flex; align-items:center; justify-content:space-between;
+      margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid var(--line);
+    }
+    .weekdots{display:flex; gap:10px; align-items:center}
+    .weekdots .w{width:6px; height:6px; border-radius:50%; background:#111; opacity:.8}
+
+    .btn{
+      height:var(--tap); padding:0 18px; border-radius:14px; cursor:pointer;
+      border:1px solid var(--line); background:#111; color:#fff; font-weight:700; letter-spacing:.2px;
+    }
+    .btn.ghost{background:transparent; color:#111}
+    .btn:active{transform:translateY(1px)}
+    .btn:focus-visible{outline:2px solid #111; outline-offset:2px}
+
+    /* Profile card */
+    .profile-top{
+      display:flex; gap:16px; align-items:center; margin-bottom:20px;
+    }
+    .avatar-wrap{
+      position:relative; width:92px; height:92px; flex:0 0 92px;
+    }
+    .avatar{
+      width:100%; height:100%; border-radius:20px; object-fit:cover;
+      border:1px solid var(--line); background:rgba(0,0,0,.04);
+    }
+    .avatar-btn{
+      position:absolute; right:6px; bottom:6px;
+      width:34px; height:34px; border-radius:50%;
+      border:1px solid var(--line); background:rgba(0,0,0,.04); color:var(--fg);
+      display:grid; place-items:center; cursor:pointer;
+    }
+    .avatar-btn:hover{background:rgba(0,0,0,.08)}
+
+    .profile-meta{flex:1; min-width:0;}
+    .nickname{font-size:22px; font-weight:700; margin:0 0 4px;}
+    .username{color:var(--muted); font-size:13px; margin:0 0 8px;}
+    .bio{color:var(--fg); opacity:.9; font-size:14px; margin:0;}
+    .stat-row{display:flex; gap:16px; margin-top:8px; font-size:13px; color:var(--muted);}
+    .stat-row strong{color:var(--fg); margin-right:4px;}
+
+    /* Tabs */
+    .profile-tabs{
+      display:flex; gap:10px; margin:10px 0 18px;
+    }
+    .profile-tab{
+      flex:1; padding:12px 14px; border-radius:14px; border:1px solid var(--line);
+      background:#fff; color:var(--fg); cursor:pointer;
+      display:flex; gap:8px; align-items:center; justify-content:center; font-weight:600;
+      box-shadow:0 6px 14px rgba(17,17,17,.05);
+    }
+    .profile-tab.active{background:#111; color:#fff;}
+
+    /* Timeline */
+    .timeline-container{display:flex; flex-direction:column; gap:16px;}
+    .timeline-month{border:1px solid var(--line); border-radius:16px; padding:14px 12px; background:#fff; box-shadow:0 10px 24px rgba(17,17,17,.06);}
+    .timeline-month-title{margin:0 0 10px; font-weight:700; font-size:15px;}
+    .timeline-items{display:flex; flex-direction:column; gap:10px;}
+    .timeline-item{
+      display:flex; gap:12px; width:100%; text-align:left;
+      padding:12px; border-radius:14px; border:1px solid var(--line);
+      background:#fafafa; color:inherit; cursor:pointer;
+      transition:border-color .15s ease, background .15s ease;
+    }
+    .timeline-item:hover{border-color:rgba(0,0,0,.28); background:#fff;}
+    .timeline-date{width:52px; flex:0 0 52px; text-align:center;}
+    .timeline-date-day{font-size:20px; font-weight:700;}
+    .timeline-date-dow{font-size:11px; color:var(--muted);}
+    .timeline-content{flex:1; min-width:0; display:flex; gap:10px;}
+    .timeline-thumb{
+      width:70px; height:70px; border-radius:12px; object-fit:cover; border:1px solid var(--line); flex-shrink:0;
+      background:rgba(0,0,0,.04);
+    }
+    .timeline-text-preview{flex:1; display:flex; flex-direction:column; gap:6px; min-width:0;}
+    .timeline-text{font-size:14px; color:var(--fg); opacity:.9; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;}
+    .timeline-meta{font-size:12px; color:var(--muted);}
+
+    .empty-state{padding:32px; text-align:center; color:var(--muted); border:1px dashed var(--line); border-radius:16px; background:#fff;}
+
+    /* Viewer */
+    /* viewer (calendar와 동일한 워크시트) */
+    #view-sheet {
+      position: fixed;
+      inset: 0;
+      background: rgba(255,255,255,.85);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 900;
+      padding: 0 0 calc(16px + env(safe-area-inset-bottom));
+    }
+    #view-sheet.open { display: flex; }
+    .viewer-card {
+      width: 100%;
+      max-width: 680px;
+      max-height: 90vh;
+      margin: 0 auto;
+      position: relative;
+      background: #fff;
+      color: #111;
+      border: 1px solid rgba(0,0,0,.12);
+      border-radius: 22px;
+      padding: 60px 22px 24px;
+      overflow: auto;
+      box-shadow: 0 16px 40px rgba(0,0,0,.16);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      animation: sheetEnter .28s ease;
+    }
+    @keyframes sheetEnter { from { transform: translateY(30px); opacity: .8; } to { transform: translateY(0); opacity: 1; } }
+    .sheet-head {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      text-align: center;
+      margin-bottom: 4px;
+    }
+    .sheet-head .date { font-size: 18px; font-weight: 700; }
+    .sheet-head .meta { font-size: 12px; color: rgba(0,0,0,.55); }
+    .view-logo img { height: 26px; opacity: .9; }
+    .viewer-photos {
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      padding: 0 10px 6px;
+      width: 100%;
+      scroll-snap-type: x mandatory;
+      scroll-padding-left: 10px;
+    }
+    .viewer-photos::-webkit-scrollbar { display: none; }
+    .viewer-photos img {
+      width: min(560px, 90vw);
+      max-height: 70vh;
+      object-fit: cover;
+      border-radius: 14px;
+      border: 1px solid rgba(0,0,0,.12);
+      flex: 0 0 auto;
+      scroll-snap-align: start;
+    }
+    .viewer-section { margin-top: 10px; width: 100%; }
+    .viewer-section h4 { margin: 0 0 8px; font-size: 12px; color: rgba(0,0,0,.55); letter-spacing: .04em; }
+    .viewer-text { white-space: pre-wrap; line-height: 1.7; font-size: 15px; }
+    .viewer-text.empty { color: rgba(0,0,0,.45); font-style: italic; }
+    .sched-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+    .sched-list li { padding: 10px; border: 1px solid rgba(0,0,0,.12); border-radius: 12px; display: flex; gap: 10px; align-items: center; }
+    .sched-list .time { color: rgba(0,0,0,.55); font-size: 13px; }
+    .sched-list .title { flex: 1; font-size: 14px; }
+    .close-btn {
+      position: fixed;
+      top: 14px;
+      left: 14px;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: 1px solid rgba(0,0,0,.12);
+      background: rgba(255,255,255,.95);
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      z-index: 910;
+    }
+    .close-btn svg { width: 18px; height: 18px; }
+    .sched-list li{padding:10px; border:1px solid rgba(0,0,0,.08); border-radius:12px; display:flex; gap:10px;}
+    .sched-list .time{color:rgba(0,0,0,.55); font-size:13px;}
+    .sched-list .title{flex:1; font-size:14px;}
+
+    /* Bottom nav */
+    .navbar{
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 200;
+      height: calc(var(--nav-h) + env(safe-area-inset-bottom));
+      background: #fff; border-top: 1px solid var(--line);
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      padding-bottom: env(safe-area-inset-bottom);
+      box-shadow: 0 -8px 20px rgba(0,0,0,.08);
+    }
+
+    .navbtn{
+      display: grid; place-items: center; gap: 4px;
+      color: var(--muted); text-decoration: none; padding: 8px 0;
+      font-size: 12px; cursor: pointer; user-select: none;
+    }
+    .navbtn strong{ font-size: 14px; color: #111; }
+
+    .navbtn.active{ color: #111; font-weight: 700; }
+    .navbtn.active strong{ text-decoration: underline; text-underline-offset: 3px; }
+
+    .navbtn:active{ transform: translateY(1px); }
+
+    @media (max-width:480px){
+      .wrap{padding:22px 14px 30px;}
+      .profile-top{flex-direction:column; align-items:flex-start;}
+      .timeline-item{flex-direction:column;}
+      .timeline-content{flex-direction:column;}
+      .timeline-thumb{width:100%; height:160px;}
+    }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="card">
-      <div class="row">
-        <img id="avatar" class="avatar" src="/image/avatar-default.png" alt="avatar" />
-        <div>
-          <div id="nickname" class="nick">(닉네임 없음)</div>
-          <div id="username" class="user">@user</div>
+  <main class="wrap">
+    <div class="profile-sticky">
+      <div class="header">
+        <div class="brand">
+          <div class="dot"></div>
+          <h1>Weekly</h1>
         </div>
-        <button id="editBtn" class="btn">프로필 편집</button>
+        <div class="weekdots" aria-hidden="true">
+          <div class="w"></div><div class="w"></div><div class="w"></div><div class="w"></div><div class="w"></div>
+        </div>
       </div>
 
-      <div class="sec">
-        <div class="label">소개</div>
-        <div id="bioText" style="white-space: pre-wrap;"></div>
-      </div>
+      <section class="profile-top">
+        <div class="avatar-wrap">
+          <img id="avatarImg" class="avatar" src="/image/avatar-default.png" alt="프로필 이미지" />
+          <button class="avatar-btn" id="avatarBtn" type="button" aria-label="아바타 변경">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M12 8v8M8 12h8"/>
+            </svg>
+          </button>
+          <input type="file" id="avatarInput" accept="image/*" style="display:none" />
+        </div>
+        <div class="profile-meta">
+          <p class="nickname" id="nickname">닉네임</p>
+          <p class="username" id="username">@username</p>
+          <p class="bio" id="bio">소개를 불러오는 중입니다.</p>
+          <div class="stat-row">
+            <span><strong id="diaryCount">0</strong>일기</span>
+            <span><strong id="photoCount">0</strong>사진</span>
+            <span><strong id="friendCount">0</strong>친구</span>
+          </div>
+        </div>
+      </section>
 
-      <div class="sec">
-        <div class="label">최근 사진</div>
-        <div id="gallery" class="grid"></div>
+      <div class="profile-tabs">
+        <button class="profile-tab active" data-tab="list" id="tabList">타임라인</button>
+        <button class="profile-tab" data-tab="calendar" id="tabCalendar">캘린더</button>
+        <button class="profile-tab" data-tab="alerts" id="tabAlerts">알림<span id="alertBadge" style="display:none;margin-left:6px;border-radius:10px;padding:2px 6px;background:#111;color:#fff;font-size:11px;"></span></button>
       </div>
+    </div>
+
+    <div class="timeline-container" id="timelineView">
+      <div class="empty-state">일기를 불러오는 중입니다...</div>
+    </div>
+
+    <div class="calendar-view" id="calendarView" style="display:none;">
+      <div class="empty-state">캘린더 뷰는 준비 중입니다.</div>
+    </div>
+
+    <div class="timeline-container" id="requestsView" style="display:none;">
+      <div class="empty-state">새 친구 요청이 없습니다.</div>
+    </div>
+
+    <div class="timeline-container" id="friendsView" style="display:none;">
+      <div class="empty-state">친구가 없습니다.</div>
+    </div>
+  </main>
+
+  <div id="view-sheet">
+    <div class="viewer-card" id="v-card">
+      <button class="close-btn" id="v-close" type="button" aria-label="닫기">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 6 6 18"/>
+          <path d="m6 6 12 12"/>
+        </svg>
+      </button>
+      <header class="sheet-head">
+        <div class="view-logo"><img src="/image/logo.png" alt="Weekly" /></div>
+        <div>
+          <div id="v-date" class="date">-</div>
+          <div id="v-meta" class="meta"></div>
+        </div>
+      </header>
+      <div id="v-photos" class="viewer-photos"></div>
+      <section class="viewer-section">
+        <h4>다이어리</h4>
+        <div id="v-text" class="viewer-text empty">작성된 내용이 없어요.</div>
+      </section>
+      <section class="viewer-section" id="v-schedules-wrap" style="display:none;">
+        <h4>일정</h4>
+        <ul id="v-schedules" class="sched-list"></ul>
+      </section>
     </div>
   </div>
 

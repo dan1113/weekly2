@@ -4,6 +4,9 @@ import { API_BASE, AUTH_HEADERS, setUserId, ensureCsrfToken } from "./config.js"
 const $ = (id) => document.getElementById(id);
 
 document.addEventListener("DOMContentLoaded", () => {
+  // 페이지 로드시 CSRF 쿠키/헤더 확보 시도
+  ensureCsrfToken().catch(() => {});
+
   const form = $("form");
   const err = $("err");
   const toSignup = $("toSignup");
@@ -29,6 +32,7 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       // 1) CSRF 토큰 쿠키 + 값 받기 (반드시 include)
       const csrf = await requestCsrf();
+      console.log("[login] csrf token ready?", !!csrf, "cookie:", document.cookie);
       // 2) 로그인
       const res = await fetch(`${API_BASE}/api/auth/login`, {
         method: "POST",
@@ -37,6 +41,7 @@ document.addEventListener("DOMContentLoaded", () => {
           ...AUTH_HEADERS({ "Content-Type": "application/json" }),
           // ★ 핵심 수정: 워커는 X-CSRF-Token을 기대함
           "X-CSRF-Token": csrf,
+          "X-XSRF-TOKEN": csrf,
         },
         body: JSON.stringify({ username, password }),
       });

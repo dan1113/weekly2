@@ -38,9 +38,11 @@ if (typeof window !== "undefined" && typeof window.fetch === "function") {
     const opts = { ...options };
     // API 요청에만 CSRF 헤더 자동 추가
     if (typeof url === "string" && url.startsWith("/api/")) {
+      const token = getCsrfToken();
       opts.headers = {
         ...(opts.headers || {}),
-        "X-CSRF-Token": getCsrfToken(),
+        "X-CSRF-Token": token,
+        "X-XSRF-TOKEN": token,
       };
       if (!opts.credentials) opts.credentials = "same-origin";
     }

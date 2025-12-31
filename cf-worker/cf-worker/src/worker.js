@@ -132,6 +132,18 @@ async function ensureSchema(env) {
     // add-on columns (idempotent)
     await DB.prepare(`ALTER TABLE users ADD COLUMN avatar_url TEXT`).run().catch(() => {});
     await DB.prepare(`ALTER TABLE users ADD COLUMN bio TEXT`).run().catch(() => {});
+    // friends table
+    await DB.prepare(`CREATE TABLE IF NOT EXISTS friends (
+      id TEXT PRIMARY KEY,
+      requester_id TEXT NOT NULL,
+      addressee_id TEXT NOT NULL,
+      status TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE(requester_id, addressee_id)
+    )`).run();
+    await DB.prepare(`CREATE INDEX IF NOT EXISTS idx_friends_addressee ON friends(addressee_id)`).run();
+    await DB.prepare(`CREATE INDEX IF NOT EXISTS idx_friends_requester ON friends(requester_id)`).run();
     // base64 diary storage
     await DB.prepare(`CREATE TABLE IF NOT EXISTS diary_daily_entries (
       user_id TEXT NOT NULL,
@@ -659,6 +671,26 @@ async function handleRequest(request, env) {
   if (path === '/health') return withCors(new Response(JSON.stringify({ ok: true })), request, env);
   if (path === '/favicon.ico') return withCors(new Response(null, { status: 204 }), request, env);
 
+  // Username profile short URL: /{username}/ -> /profile.html?id=...
+  if (!path.includes('.') && path.split('/').filter(Boolean).length === 1 && path !== '/api') {
+    const username = path.replace(/^\/+|\/+$/g, '');
+    const reserved = new Set(['api','login','signup','calendar','me','profile','profile-edit','search','friends','index','health']);
+    if (username && /^[a-zA-Z0-9_.-]{1,32}$/.test(username) && !reserved.has(username.toLowerCase())) {
+      try {
+        await ensureSchema(env);
+        const row = await runWithRetries(db =>
+          db.prepare('SELECT id FROM users WHERE username = ?').bind(username).first(), env);
+        if (row?.id) {
+          const redirectUrl = `${url.origin}/otherprofile.html?id=${encodeURIComponent(row.id)}&username=${encodeURIComponent(username)}`;
+          const resp = new Response(null, { status: 302, headers: { Location: redirectUrl } });
+          return withCors(resp, request, env);
+        }
+      } catch (e) {
+        console.warn('username redirect error', e?.message || e);
+      }
+    }
+  }
+
   // Admin
   if (path === '/api/admin/d1-test') return withCors(await handleD1Test(request, env), request, env);
   if (path === '/api/admin/reset-db' && url.searchParams.get('confirm') === 'true')
@@ -700,6 +732,161 @@ async function handleRequest(request, env) {
     return withCors(await handleProfileAvatar(request, env, userId), request, env);
   }
 
+  // User search (for friends lookup)
+  if (path === '/api/users/search' && method === 'GET') {
+    if (!userId) return withCors(new Response(JSON.stringify({ users: [] }), { status: 200 }), request, env);
+    const q = (url.searchParams.get('q') || '').trim();
+    if (!q) return withCors(new Response(JSON.stringify({ users: [] }), { status: 200 }), request, env);
+    try {
+      await ensureSchema(env);
+      const rows = await runWithRetries(db =>
+        db.prepare(
+          `SELECT id, username, nickname, avatar_url
+             FROM users
+            WHERE (nickname LIKE ? OR username LIKE ?)
+            ORDER BY (nickname LIKE ?) DESC, nickname ASC
+            LIMIT 20`
+        ).bind(`${q}%`, `${q}%`, `${q}%`).all(), env);
+      // relation: compute simple status for current user
+      const users = rows.results || [];
+      const resultsWithRelation = [];
+      for (const u of users) {
+        const fr = await runWithRetries(db =>
+          db.prepare(`SELECT status, requester_id, addressee_id FROM friends WHERE (requester_id = ? AND addressee_id = ?) OR (requester_id = ? AND addressee_id = ?)`)
+            .bind(userId, u.id, u.id, userId).first(), env);
+        resultsWithRelation.push({ ...u, relation: fr || null });
+      }
+      return withCors(new Response(JSON.stringify({ users: resultsWithRelation }), { status: 200 }), request, env);
+    } catch (e) {
+      console.error('user search error', e);
+      return withCors(new Response(JSON.stringify({ users: [] }), { status: 200 }), request, env);
+    }
+  }
+
+  // User fetch by id (profile view)
+  if (path.startsWith('/api/users/') && method === 'GET') {
+    if (!userId) return withCors(new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 }), request, env);
+    const targetId = path.split('/').pop();
+    if (!targetId) return withCors(new Response(JSON.stringify({ error: 'Bad Request' }), { status: 400 }), request, env);
+  try {
+    await ensureSchema(env);
+    const row = await runWithRetries(db =>
+      db.prepare('SELECT id, username, nickname, avatar_url, bio, created_at FROM users WHERE id = ?')
+        .bind(targetId).first(), env);
+    if (!row) return withCors(new Response(JSON.stringify({ error: '존재하지 않는 사용자' }), { status: 404 }), request, env);
+    const fr = await runWithRetries(db =>
+      db.prepare(`SELECT status, requester_id, addressee_id FROM friends WHERE (requester_id = ? AND addressee_id = ?) OR (requester_id = ? AND addressee_id = ?)`)
+        .bind(userId, targetId, targetId, userId).first(), env);
+    return withCors(new Response(JSON.stringify({ user: row, relation: fr || null }), { status: 200 }), request, env);
+  } catch (e) {
+    console.error('user fetch error', e);
+    return withCors(new Response(JSON.stringify({ error: 'Internal Server Error' }), { status: 500 }), request, env);
+  }
+}
+
+  // Friends pending list (alerts)
+  if (path === '/api/friends/pending' && method === 'GET') {
+    if (!userId) return withCors(new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 }), request, env);
+    try {
+      await ensureSchema(env);
+      const rows = await runWithRetries(db =>
+        db.prepare(`
+          SELECT f.requester_id as id, u.username, u.nickname, u.avatar_url, f.created_at
+            FROM friends f
+            JOIN users u ON u.id = f.requester_id
+           WHERE f.addressee_id = ? AND f.status = 'pending'
+           ORDER BY f.created_at DESC
+           LIMIT 50
+        `).bind(userId).all(), env);
+      return withCors(new Response(JSON.stringify({ requests: rows.results || [] }), { status: 200 }), request, env);
+    } catch (e) {
+      console.error('pending list error', e);
+      return withCors(new Response(JSON.stringify({ error: 'Internal Server Error' }), { status: 500 }), request, env);
+    }
+  }
+
+  // Friends list
+  if (path === '/api/friends/list' && method === 'GET') {
+    if (!userId) return withCors(new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 }), request, env);
+    await ensureSchema(env);
+    try {
+      const rows = await runWithRetries(db =>
+        db.prepare(`SELECT CASE WHEN requester_id = ? THEN addressee_id ELSE requester_id END AS friend_id
+                      FROM friends
+                     WHERE status = 'accepted' AND (requester_id = ? OR addressee_id = ?)`)
+          .bind(userId, userId, userId).all(), env);
+      if (!rows.results?.length) return withCors(new Response(JSON.stringify({ friends: [] }), { status: 200 }), request, env);
+      const ids = rows.results.map(r => r.friend_id);
+      const placeholders = ids.map(() => '?').join(',');
+      const friends = await runWithRetries(db =>
+        db.prepare(`SELECT id, username, nickname, avatar_url FROM users WHERE id IN (${placeholders})`).bind(...ids).all(), env);
+      return withCors(new Response(JSON.stringify({ friends: friends.results || [] }), { status: 200 }), request, env);
+    } catch (e) {
+      console.error('friends list error', e);
+      return withCors(new Response(JSON.stringify({ friends: [] }), { status: 200 }), request, env);
+    }
+  }
+
+  // Friend request
+  if (path === '/api/friends/request' && method === 'POST') {
+    if (!userId) return withCors(new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 }), request, env);
+    const body = await request.json().catch(() => ({}));
+    const { toUserId } = body || {};
+    if (!toUserId || toUserId === userId) return withCors(new Response(JSON.stringify({ error: '잘못된 대상' }), { status: 400 }), request, env);
+    await ensureSchema(env);
+    const exists = await runWithRetries(db => db.prepare('SELECT 1 FROM users WHERE id = ?').bind(toUserId).first(), env);
+    if (!exists) return withCors(new Response(JSON.stringify({ error: '대상이 존재하지 않음' }), { status: 404 }), request, env);
+    const existing = await runWithRetries(db =>
+      db.prepare(`SELECT * FROM friends WHERE (requester_id = ? AND addressee_id = ?) OR (requester_id = ? AND addressee_id = ?)`)
+        .bind(userId, toUserId, toUserId, userId).first(), env);
+    const now = new Date().toISOString();
+    if (!existing) {
+      const id = crypto.randomUUID();
+      await runWithRetries(db =>
+        db.prepare(`INSERT INTO friends (id, requester_id, addressee_id, status, created_at, updated_at) VALUES (?, ?, ?, 'pending', ?, ?)`)
+          .bind(id, userId, toUserId, now, now).run(), env);
+      return withCors(new Response(JSON.stringify({ ok: true, status: 'pending' }), { status: 200 }), request, env);
+    }
+    if (existing.status === 'accepted') return withCors(new Response(JSON.stringify({ error: '이미 친구입니다.' }), { status: 409 }), request, env);
+    if (existing.status === 'pending') return withCors(new Response(JSON.stringify({ error: '이미 요청 대기 중' }), { status: 409 }), request, env);
+    await runWithRetries(db => db.prepare(`UPDATE friends SET status='pending', updated_at=? WHERE id=?`).bind(now, existing.id).run(), env);
+    return withCors(new Response(JSON.stringify({ ok: true, status: 'pending' }), { status: 200 }), request, env);
+  }
+
+  // Friend respond
+  if (path === '/api/friends/respond' && method === 'POST') {
+    if (!userId) return withCors(new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 }), request, env);
+    const body = await request.json().catch(() => ({}));
+    const { fromUserId, action } = body || {};
+    if (!fromUserId || !['accept','reject'].includes(action)) {
+      return withCors(new Response(JSON.stringify({ error: '파라미터 오류' }), { status: 400 }), request, env);
+    }
+    await ensureSchema(env);
+    const fr = await runWithRetries(db =>
+      db.prepare(`SELECT * FROM friends WHERE requester_id = ? AND addressee_id = ?`).bind(fromUserId, userId).first(), env);
+    if (!fr || fr.status !== 'pending') {
+      return withCors(new Response(JSON.stringify({ error: '대기중 요청이 없음' }), { status: 404 }), request, env);
+    }
+    const now = new Date().toISOString();
+    const newStatus = action === 'accept' ? 'accepted' : 'rejected';
+    await runWithRetries(db => db.prepare(`UPDATE friends SET status=?, updated_at=? WHERE id=?`).bind(newStatus, now, fr.id).run(), env);
+    return withCors(new Response(JSON.stringify({ ok: true, status: newStatus }), { status: 200 }), request, env);
+  }
+
+  // Friend delete
+  if (path === '/api/friends/delete' && method === 'POST') {
+    if (!userId) return withCors(new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 }), request, env);
+    const body = await request.json().catch(() => ({}));
+    const { targetUserId } = body || {};
+    if (!targetUserId) return withCors(new Response(JSON.stringify({ error: '잘못된 대상' }), { status: 400 }), request, env);
+    await ensureSchema(env);
+    const row = await runWithRetries(db =>
+      db.prepare(`SELECT id FROM friends WHERE (requester_id = ? AND addressee_id = ?) OR (requester_id = ? AND addressee_id = ?)`)
+        .bind(userId, targetUserId, targetUserId, userId).first(), env);
+    if (!row) return withCors(new Response(JSON.stringify({ error: '친구 관계가 없습니다.' }), { status: 404 }), request, env);
+    await runWithRetries(db => db.prepare(`DELETE FROM friends WHERE id = ?`).bind(row.id).run(), env);
+    return withCors(new Response(JSON.stringify({ ok: true }), { status: 200 }), request, env);
+  }
   // Profile bio update (frontend expects /api/users/me/bio)
   if (path === '/api/users/me/bio' && method === 'POST') {
     if (!userId) return withCors(new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 }), request, env);
@@ -781,6 +968,19 @@ async function handleRequest(request, env) {
       if (method === 'PUT')    return withCors(await handleUpdateDiaryEntry(request, env, userId, entryId), request, env);
       if (method === 'DELETE') return withCors(await handleDeleteDiaryEntry(request, env, userId, entryId), request, env);
     }
+  }
+
+  // Diary photos for user (timeline thumbnails)
+  if (path.startsWith('/api/diary/') && path.endsWith('/photos') && method === 'GET') {
+    if (!userId) return withCors(new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 }), request, env);
+    const parts = path.split('/').filter(Boolean); // ['api','diary', userId, 'photos']
+    const targetId = parts[2];
+    const limit = Math.max(1, Math.min(100, Number(url.searchParams.get('limit') || '60')));
+    await ensureSchema(env);
+    const rows = await runWithRetries(db =>
+      db.prepare(`SELECT date, base64_data as image_data, mime_type, order_index FROM diary_photos WHERE user_id = ? ORDER BY date DESC, order_index ASC LIMIT ?`)
+        .bind(targetId, limit).all(), env);
+    return withCors(new Response(JSON.stringify({ items: rows.results || [] }), { status: 200 }), request, env);
   }
 
   return withCors(new Response(JSON.stringify({ error: 'Not Found' }), { status: 404 }), request, env);

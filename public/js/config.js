@@ -1,17 +1,15 @@
-const runtime = typeof window !== "undefined" ? window : undefined;
+﻿const runtime = typeof window !== "undefined" ? window : undefined;
 
 // Cloudflare Pages vs local
 const rawBase =
   (runtime && runtime.API_BASE) ||
-  (typeof location !== "undefined" && location.hostname.includes("localhost")
-    ? "http://localhost:8787"
-    : "https://weeklydiary.store");
+  "https://weeklydiary.store";
 
 export const API_BASE = rawBase.endsWith("/") ? rawBase.slice(0, -1) : rawBase;
 
-// CSRF: 단일 쿠키(XSRF-TOKEN) + 단일 헤더(X-CSRF-Token)
-const CSRF_COOKIE = "XSRF-TOKEN";
-const CSRF_HEADER = "X-CSRF-Token";
+// CSRF: Express는 XSRF-TOKEN, Cloudflare Worker는 csrf_token을 사용한다.
+const CSRF_COOKIES = ["XSRF-TOKEN", "csrf_token"];
+const CSRF_HEADERS = ["X-CSRF-Token", "X-XSRF-TOKEN", "CSRF-Token"];
 let cachedCsrf = null;
 let csrfPromise = null;
 
@@ -20,7 +18,7 @@ function readCsrfCookie() {
   const parts = document.cookie.split(";");
   for (const part of parts) {
     const [k, v] = part.trim().split("=");
-    if (k === CSRF_COOKIE && v !== undefined) return decodeURIComponent(v);
+    if (CSRF_COOKIES.includes(k) && v !== undefined) return decodeURIComponent(v);
   }
   return "";
 }
@@ -46,20 +44,24 @@ export async function ensureCsrfToken() {
         method: "GET",
         credentials: "include",
       });
-      // CSRF 발급 엔드포인트는 쿠키를 내려주기만 하면 됨.
-      // 헤더/바디는 사용하지 않고, 쿠키를 다시 읽는다.
-      const token = readCsrfCookie();
+      const data = await res.json().catch(() => ({}));
+      const bodyToken = data?.csrfToken;
+      const headerToken = res.headers.get("x-csrf-token") || res.headers.get("X-CSRF-Token") || res.headers.get("x-xsrf-token") || res.headers.get("X-XSRF-TOKEN");
+      const cookieToken = readCsrfCookie();
+      const token = headerToken || bodyToken || cookieToken || "";
       if (token) {
         cachedCsrf = token;
-        return token;
+        // 서버가 HttpOnly 쿠키로만 주는 경우 대비 클라이언트에 직접 써준다.
+        try {
+          if (typeof document !== "undefined") {
+            const secure = location.protocol === "https:" ? "; Secure" : "";
+            CSRF_COOKIES.forEach((name) => {
+              document.cookie = `${name}=${encodeURIComponent(token)}; path=/; SameSite=Lax${secure}`;
+            });
+          }
+        } catch {}
       }
-      // 혹시 헤더로 내려줬다면 보조적으로 읽음
-      const hdr = res.headers.get(CSRF_HEADER.toLowerCase()) || res.headers.get(CSRF_HEADER);
-      if (hdr) {
-        cachedCsrf = hdr;
-        return hdr;
-      }
-      return "";
+      return cachedCsrf || "";
     } catch (err) {
       console.error("CSRF fetch error:", err);
       return "";
@@ -107,7 +109,11 @@ export function AUTH_HEADERS(extra = {}) {
   const uid = resolveStoredUserId();
   if (uid) headers["x-user-id"] = uid;
   const csrf = resolveCsrf();
-  if (csrf) headers[CSRF_HEADER] = csrf;
+  if (csrf) {
+    CSRF_HEADERS.forEach((name) => {
+      headers[name] = csrf;
+    });
+  }
   return headers;
 }
 

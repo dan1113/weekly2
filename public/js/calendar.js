@@ -496,6 +496,10 @@ async function openViewer(dateStr) {
     cardEl.classList.remove("compact", "with-photos");
     cardEl.classList.add(photos.length ? "with-photos" : "compact");
   }
+  if (sheet) {
+    sheet.classList.toggle("photo-mode", !!photos.length);
+    sheet.classList.toggle("compact-mode", !photos.length);
+  }
 
   if (metaEl) {
     const meta = [];

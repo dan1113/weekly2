@@ -9,17 +9,17 @@
   <link rel="stylesheet" href="/style.css" />
   <script src="/js/bootstrap.js"></script>
 <style>
-    :root {
-      --bg: #fff;
-      --fg: #111;
-      --muted: rgba(0,0,0,.55);
-      --line: rgba(0,0,0,.12);
-      --hover: rgba(0,0,0,.04);
-      --tap: 48px;
-      --radius-sm: 12px;
-      --radius-md: 16px;
-      --radius-lg: 20px;
-    }
+  :root {
+    --bg: #f6f7f9;
+    --fg: #0f1115;
+    --muted: rgba(0,0,0,.55);
+    --line: rgba(0,0,0,.12);
+    --hover: rgba(0,0,0,.04);
+    --tap: 48px;
+    --radius-sm: 18px;
+    --radius-md: 18px;
+    --radius-lg: 22px;
+  }
     
     * { 
       box-sizing: border-box; 
@@ -38,69 +38,97 @@
       line-height: 1.5;
       -webkit-font-smoothing: antialiased;
     }
+
+    .page {
+      width: min(520px, 100%);
+      margin: 0 auto;
+      min-height: 100vh;
+      background: #fff;
+      border-radius: 24px 24px 0 0;
+      box-shadow: 0 14px 30px rgba(0,0,0,.08);
+      overflow: hidden;
+    }
     
     /* ===== Header ===== */
     header {
       position: sticky;
       top: 0;
       z-index: 10;
-      background: var(--bg);
-      border-bottom: 1px solid var(--line);
+      background: #fff;
+      padding: 14px 16px 10px;
+      border-bottom: 1px solid rgba(0,0,0,.05);
     }
     
-    .header-inner {
-      padding: 20px 16px 12px;
+    .topbar {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 16px;
+      gap: 12px;
     }
-    
-    .title { 
-      font-size: 20px; 
-      font-weight: 600;
-      letter-spacing: -0.01em;
+
+    .logo {
+      height: 28px;
+      display: flex;
+      align-items: center;
     }
-    
+    .logo img { height: 100%; }
+
     .controls { 
       display: flex; 
       gap: 8px; 
       align-items: center;
     }
     
+    .month-row {
+      margin-top: 12px;
+      padding: 0 2px;
+    }
+    .month-label {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+    
     /* ===== Weekday ===== */
     .weekday {
       display: grid;
       grid-template-columns: repeat(7, 1fr);
-      padding: 10px 16px 8px;
+      padding: 12px 6px 10px;
       color: var(--muted);
       font-size: 11px;
-      font-weight: 500;
+      font-weight: 600;
       text-align: center;
+      letter-spacing: 0.02em;
     }
     
     /* ===== Calendar Grid ===== */
     .grid {
       display: grid;
       grid-template-columns: repeat(7, 1fr);
-      gap: 4px 4px;
-      padding: 4px 4px 20px;
-      padding-bottom: calc(20px + env(safe-area-inset-bottom));
+      gap: 3px;
+      padding: 8px;
+      padding-bottom: calc(env(safe-area-inset-bottom) + 64px);
       flex: 1;
     }
     
-    .cell {
-      position: relative;
-      aspect-ratio: 4/5;
-      border: 1px solid var(--line);
-      border-radius: var(--radius-sm);
-      overflow: hidden;
-      cursor: pointer;
-      transition: border-color 0.15s ease;
-    }
+  .cell {
+    position: relative;
+    height: 80px;
+    border: none;
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+    border-radius: 13px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.04);
+    
+  }
     
     .cell:hover {
-      border-color: rgba(255,255,255,.3);
+      background: var(--hover);
     }
     
     .cell:active {
@@ -108,11 +136,12 @@
     }
     
     .cell.today .num {
-      background: var(--fg);
-      color: var(--bg);
+      border: 2px solid #000;
+      border-radius: 10px;
       padding: 4px 8px;
-      border-radius: 8px;
-      font-weight: 600;
+      background: rgba(0,0,0,0.05);
+      color: #000;
+      font-weight: 700;
     }
     
     .cell.dim .num { 
@@ -126,6 +155,8 @@
       width: 100%;
       height: 100%;
       object-fit: cover;
+      border-radius: inherit;
+      z-index: 0;
     }
     
     .cell.has-image .num {
@@ -134,31 +165,18 @@
       font-weight: 600;
     }
     
-    .cell .overlay {
+    .num {
       position: absolute;
       inset: 0;
-      background: rgba(0,0,0,.2);
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: background 0.15s ease;
+      font-size: 14px;
+      font-weight: 500;
+      pointer-events: none;
+      z-index: 1;
+      color: var(--fg);
     }
-    
-  .cell:hover .overlay {
-    background: rgba(0,0,0,.4);
-  }
-
-  .num {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 14px;
-    font-weight: 500;
-    pointer-events: none;
-    z-index: 1;
-  }
     
     .dot {
       position: absolute;
@@ -167,7 +185,7 @@
       width: 6px;
       height: 6px;
       border-radius: 50%;
-      background: rgba(255,255,255,.6);
+      background: rgba(255,255,255,.7);
       z-index: 1;
     }
     .hit {
@@ -176,23 +194,25 @@
       cursor: pointer;
       z-index: 2;
     }
+
     /* ===== Buttons ===== */
     button {
       min-width: var(--tap);
       height: var(--tap);
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--line);
-      background: transparent;
+      border-radius: 14px;
+      border: 1px solid #e5e7eb;
+      background: #fff;
       color: var(--fg);
       font-size: 14px;
-      font-weight: 500;
+      font-weight: 600;
       padding: 0 16px;
       cursor: pointer;
       transition: all 0.2s ease;
+      box-shadow: 0 4px 10px rgba(0,0,0,.06);
     }
 
     button:hover {
-      border-color: rgba(255,255,255,.3);
+      border-color: #cfd3db;
     }
     
     button:active {
@@ -202,22 +222,23 @@
     /* 화살표 버튼 - 원형 스타일 */
     #prevBtn,
     #nextBtn {
-      min-width: 36px;
-      width: 36px;
-      height: 36px;
+      min-width: 38px;
+      width: 38px;
+      height: 38px;
       padding: 0;
-      border: none;
-      background: rgba(255,255,255,.08);
-      border-radius: 50%;
+      border: 1px solid #e5e7eb;
+      background: #fff;
+      border-radius: 12px;
       font-size: 16px;
       display: flex;
       align-items: center;
       justify-content: center;
+      box-shadow: 0 4px 10px rgba(0,0,0,.06);
     }
 
     #prevBtn:hover,
     #nextBtn:hover {
-      background: rgba(255,255,255,.15);
+      border-color: #cfd3db;
     }
 
     #prevBtn:active,
@@ -228,19 +249,20 @@
     /* 오늘 버튼 - Pill 스타일 */
     #todayBtn {
       min-width: auto;
-      height: 32px;
-      padding: 0 16px;
+      height: 38px;
+      padding: 0 18px;
       border: none;
-      background: var(--fg);
-      color: var(--bg);
-      border-radius: 16px;
-      font-size: 13px;
-      font-weight: 600;
+      background: #111;
+      color: #fff;
+      border-radius: 14px;
+      font-size: 14px;
+      font-weight: 700;
       letter-spacing: -0.01em;
+      box-shadow: 0 6px 16px rgba(0,0,0,.2);
     }
 
     #todayBtn:hover {
-      background: rgba(255,255,255,.9);
+      background: #000;
     }
 
     #todayBtn:active {
@@ -403,25 +425,30 @@
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
       display: none;
-      align-items: center;
+      align-items: flex-end;
       justify-content: center;
       z-index: 850;
       padding: 0;
     }
     #view-sheet.open { display: flex; }
+    #view-sheet.photo-mode {
+      align-items: center;
+      justify-content: center;
+      padding: 0 0 calc(16px + env(safe-area-inset-bottom));
+    }
     .viewer-card {
       width: 100%;
-      height: auto;
-      max-height: 90vh;
-      max-width: 100%;
-      margin: 0;
+      max-width: none;
+      height: 50vh;
+      max-height: 50vh;
+      margin: 0 auto;
       position: relative;
       background: #fff;
       border: 1px solid var(--line);
-      border-radius: 0;
+      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
       padding: 60px 24px 24px;
       overflow: auto;
-      box-shadow: none;
+      box-shadow: 0 -10px 32px rgba(0,0,0,.16);
       transition: transform 0.2s ease;
       display: flex;
       flex-direction: column;
@@ -432,12 +459,13 @@
       animation: sheetEnter 0.28s ease;
     }
     .viewer-card.compact {
-      height: 33vh;
+      /* height: 33vh;
       max-height: 33vh;
-      width: 100%;
-      max-width: 520px;
-      margin: auto;
-      border-radius: var(--radius-lg);
+      min-height: 260px;
+      width: min(92vw, 540px);
+      margin: 0 auto;
+      align-self: center;
+      border-radius: var(--radius-lg) var(--radius-lg) 0 0; */
     }
     .viewer-card.with-photos {
       height: 100%;
@@ -492,25 +520,26 @@
       display: flex;
       gap: 12px;
       overflow-x: auto;
-      padding: 0 0 10px;
+      padding: 0 12px 10px;
       margin: 0;
       -webkit-overflow-scrolling: touch;
-      justify-content: center;
+      justify-content: flex-start;
       align-items: center;
       width: 100%;
       scroll-snap-type: x mandatory;
+      scroll-padding-left: 12px;
     }
     .viewer-photos::-webkit-scrollbar { display: none; }
     .viewer-photos img {
       width: 100%;
-      max-width: 560px;
+      max-width: min(560px, 90vw);
       height: auto;
       max-height: 70vh;
       aspect-ratio: 1 / 1;
       object-fit: cover;
       border-radius: var(--radius-sm);
       border: 1px solid var(--line);
-      flex-shrink: 0;
+      flex: 0 0 auto;
       scroll-snap-align: start;
     }
     @keyframes sheetEnter {
@@ -521,16 +550,12 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      position: fixed;
-      top: 8px;
-      left: 0;
-      right: 0;
-      margin: 0 auto;
-      z-index: 12;
+      width: 100%;
+      margin-bottom: 8px;
       pointer-events: none;
     }
     .view-logo img {
-      height: var(--logo-size);
+      height: 28px;
       object-fit: contain;
     }
     .close-btn {
@@ -610,66 +635,32 @@
       to { transform: translateX(0); opacity: 1; }
     }
     
-    /* ===== Navigation Bar ===== */
-    .navbar {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      z-index: 800;
-      background: var(--bg);
-      border-top: 1px solid var(--line);
-      display: flex;
-      justify-content: space-around;
-      padding: 8px 0 calc(8px + env(safe-area-inset-bottom));
-    }
-    
-    .nav-btn {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
-      min-width: var(--tap);
-      padding: 8px 12px;
-      background: transparent;
-      border: none;
-      color: var(--muted);
-      font-size: 11px;
-      cursor: pointer;
-      text-decoration: none;
-    }
-    
-    .nav-btn.active {
-      color: var(--fg);
-    }
-    
-  .nav-icon {
-    width: 24px;
-    height: 24px;
-    stroke: currentColor;
-    fill: none;
-      stroke-width: 2;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
+
   </style>
 </head>
 <body>
-  <header>
-    <div class="header-inner">
-      <div class="title">-</div>
-      <div class="controls">
-        <button id="prevBtn" aria-label="이전 달">←</button>
-        <button id="todayBtn">오늘</button>
-        <button id="nextBtn" aria-label="다음 달">→</button>
+  <div class="page">
+    <header>
+      <div class="topbar">
+        <div class="logo">
+          <img src="/image/logo.png" alt="Weekly 로고" />
+        </div>
+        <div class="controls">
+          <button id="prevBtn" aria-label="이전 달">←</button>
+          <button id="todayBtn">오늘</button>
+          <button id="nextBtn" aria-label="다음 달">→</button>
+        </div>
       </div>
-    </div>
-    <div class="weekday">
-      <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
-    </div>
-  </header>
+      <div class="month-row">
+        <div class="month-label" id="monthLabel">-</div>
+      </div>
+      <div class="weekday">
+        <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
+      </div>
+    </header>
 
-  <main class="grid" id="calendarGrid" role="grid" aria-labelledby="monthLabel"></main>
+    <main class="grid" id="calendarGrid" role="grid" aria-labelledby="monthLabel"></main>
+  </div>
 
 
 
@@ -696,20 +687,14 @@
 
 <div id="view-sheet">
   <div class="viewer-card" id="v-card">
-    <div class="view-logo">
-      <img src="/image/logo.png" alt="Weekly 로고" />
-    </div>
     <header class="sheet-head">
+      <div class="view-logo">
+        <img src="/image/logo.png" alt="Weekly 로고" />
+      </div>
       <div>
         <div id="v-date" class="date"></div>
         <div id="v-meta" class="meta"></div>
       </div>
-      <button id="v-close" class="close-btn" type="button" aria-label="닫기">
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M18 6 6 18"/>
-          <path d="m6 6 12 12"/>
-        </svg>
-      </button>
     </header>
     <div id="v-photos" class="viewer-photos"></div>
     <div class="sheet-actions">

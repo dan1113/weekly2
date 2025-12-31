@@ -26,14 +26,14 @@ const isProd = NODE_ENV === "production";
 const COOKIE_NAME = "sid";
 const COOKIE_OPTS = {
   httpOnly: true,
-  sameSite: "lax",
-  secure: isProd,
+  sameSite: "None",
+  secure: true,
   path: "/",
   signed: true,
 };
 
 // CSRF (더블서브밋용 쿠키 이름)
-const CSRF_COOKIE_NAME = "xsrf-token";
+const CSRF_COOKIE_NAME = "XSRF-TOKEN";
 
 /* -------------------- App -------------------- */
 const app = express();
@@ -249,8 +249,8 @@ app.get("/api/csrf", (req, res) => {
     cookie: {
       key: CSRF_COOKIE_NAME,
       httpOnly: false,
-      sameSite: "lax",
-      secure: isProd,
+      sameSite:"None",
+      secure: true,
       signed: false,
       path: "/"
     }
@@ -528,6 +528,35 @@ app.post("/api/friends/respond", csrfProtection, authRequired, async (req, res) 
   const newStatus = action === "accept" ? "accepted" : "rejected";
   await db.run(`UPDATE friends SET status=?, updated_at=? WHERE id=?`, [newStatus, now, fr.id]);
   res.json({ ok: true, status: newStatus });
+});
+
+app.post("/api/friends/delete", csrfProtection, authRequired, async (req, res) => {
+  const me = req.user.id;
+  const { targetUserId } = req.body || {};
+  if (!targetUserId) return res.status(400).json({ error: "잘못된 대상" });
+  const row = await db.get(
+    `SELECT id FROM friends WHERE
+       (requester_id = ? AND addressee_id = ?)
+       OR (requester_id = ? AND addressee_id = ?)`,
+    [me, targetUserId, targetUserId, me]
+  );
+  if (!row) return res.status(404).json({ error: "친구 관계가 없습니다." });
+  await db.run(`DELETE FROM friends WHERE id = ?`, [row.id]);
+  res.json({ ok: true });
+});
+
+app.get("/api/friends/pending", authRequired, async (req, res) => {
+  const me = req.user.id;
+  const rows = await db.all(
+    `SELECT f.requester_id as id, u.username, u.nickname, u.avatar_url, f.created_at
+       FROM friends f
+       JOIN users u ON u.id = f.requester_id
+      WHERE f.addressee_id = ? AND f.status = 'pending'
+      ORDER BY f.created_at DESC
+      LIMIT 50`,
+    [me]
+  );
+  res.json({ requests: rows });
 });
 
 app.get("/api/friends/list", authRequired, async (req, res) => {
@@ -866,6 +895,39 @@ app.get("/api/calendar/overview", authRequired, async (req, res) => {
     }
   });
   res.json({ year, month, days: Array.from(map.values()) });
+});
+
+// Username 프로필 단축 주소: /{username} -> profile.html?id=...
+async function handleUsernameRedirect(req, res, next, username) {
+  try {
+    const u = String(username || "").trim();
+    const reserved = new Set(["api", "login", "signup", "calendar", "me", "profile", "profile-edit", "search", "friends", "index", "health"]);
+    if (!u || u.includes(".") || reserved.has(u.toLowerCase())) return next();
+    if (!/^[a-zA-Z0-9_.-]{1,32}$/.test(u)) return next();
+    const row = await db.get(`SELECT id FROM users WHERE username = ?`, [u]);
+    if (!row) return next();
+    return res.redirect(`/otherprofile.html?id=${encodeURIComponent(row.id)}&username=${encodeURIComponent(u)}`);
+  } catch (err) {
+    console.warn("username route error", err);
+    return next();
+  }
+}
+
+app.get("/:username/", async (req, res, next) => {
+  try {
+    return await handleUsernameRedirect(req, res, next, req.params.username);
+  } catch (err) {
+    console.warn("username route error", err);
+    return next();
+  }
+});
+app.get("/:username", async (req, res, next) => {
+  try {
+    return await handleUsernameRedirect(req, res, next, req.params.username);
+  } catch (err) {
+    console.warn("username route error", err);
+    return next();
+  }
 });
 
 /* -------------------- Protected Page & Static -------------------- */

@@ -18,7 +18,7 @@
       <span>calendar</span>
     </a>
     <a class="navbtn" data-key="profile" href="${toProfile}" aria-label="내 프로필">
-      <strong>내 프로필</strong>
+      <strong>내 프로필\n(비활성)</strong>
       <span>me</span>
     </a>
   `;

@@ -9,8 +9,8 @@
 <style>
   :root { --line: rgba(0,0,0,.14); --muted: rgba(0,0,0,.55); }
   body { background:#fff; color:#111; font-family:-apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo","Noto Sans KR", system-ui, sans-serif; margin:0; }
-  .wrap { max-width:480px; margin:0 auto; padding:16px; }
-  .row { display:flex; gap:8px; }
+  .wrap { max-width:520px; margin:0 auto; padding:16px; }
+  .row { position:relative; display:flex; gap:8px; }
   input { flex:1; padding:12px; background:#fff; color:#111; border:1px solid var(--line); border-radius:12px; }
   button { padding:12px 16px; border:1px solid var(--line); background:#111; color:#fff; border-radius:12px; cursor:pointer; }
   .list { margin-top:12px; display:flex; flex-direction:column; gap:8px; }
@@ -31,52 +31,58 @@
 <script type="module">
 import { API_BASE, AUTH_HEADERS } from "/js/config.js";
 
-const input = document.getElementById('q');
-const button = document.getElementById('btn');
-const list = document.getElementById('list');
+const input = document.getElementById("q");
+const button = document.getElementById("btn");
+const list = document.getElementById("list");
+let debounceTimer = null;
 
 async function safeJson(res) {
-  try {
-    return await res.json();
-  } catch {
-    return {};
-  }
+  try { return await res.json(); } catch { return {}; }
+}
+
+function renderUsers(users = []) {
+  list.innerHTML = "";
+  if (!users.length) return;
+  users.forEach((u) => {
+    const a = document.createElement("a");
+    a.className = "card";
+    a.href = `/otherprofile.html?id=${encodeURIComponent(u.id)}&username=${encodeURIComponent(u.username)}`;
+    a.innerHTML = `
+      <img class="avatar" src="${u.avatar_url || "/image/avatar-default.png"}" alt="">
+      <div>
+        <div class="name">${u.nickname || "(닉네임 없음)"}</div>
+        <div class="muted">@${u.username}</div>
+      </div>
+    `;
+    list.appendChild(a);
+  });
 }
 
 async function search() {
   const q = input.value.trim();
   if (!q) {
-    list.innerHTML = '';
+    list.innerHTML = "";
     return;
   }
   try {
     const res = await fetch(`${API_BASE}/api/users/search?q=${encodeURIComponent(q)}`, {
-      credentials: 'include',
+      credentials: "include",
       headers: AUTH_HEADERS(),
     });
     const data = await safeJson(res);
-    list.innerHTML = '';
-    (data.users || []).forEach((u) => {
-      const a = document.createElement('a');
-      a.className = 'card';
-      a.href = `/profile.html?id=${encodeURIComponent(u.id)}`;
-      a.innerHTML = `
-        <img class="avatar" src="${u.avatar_url || '/image/avatar-default.png'}" alt="">
-        <div>
-          <div class="name">${u.nickname || '(닉네임 없음)'}</div>
-          <div class="muted">@${u.username}</div>
-        </div>
-      `;
-      list.appendChild(a);
-    });
+    renderUsers(data.users || []);
   } catch (err) {
-    console.error('search failed', err);
+    console.error("search failed", err);
   }
 }
 
-button.addEventListener('click', search);
-input.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') search();
+button.addEventListener("click", search);
+input.addEventListener("input", () => {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(search, 200); // 타이핑 도중 자동완성
+});
+input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") search();
 });
 </script>
 <script type="module" src="/js/nav.js"></script>
