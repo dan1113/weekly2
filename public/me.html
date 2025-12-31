@@ -253,8 +253,7 @@
     <div class="profile-sticky">
       <div class="header">
         <div class="brand">
-          <div class="dot"></div>
-          <h1>Weekly</h1>
+          <img src="/image/logo.png" alt="Weekly 로고" style="height:28px; object-fit:contain;" />
         </div>
         <div class="weekdots" aria-hidden="true">
           <div class="w"></div><div class="w"></div><div class="w"></div><div class="w"></div><div class="w"></div>
@@ -285,9 +284,33 @@
       </section>
 
       <div class="profile-tabs">
-        <button class="profile-tab active" data-tab="list" id="tabList">타임라인</button>
-        <button class="profile-tab" data-tab="friends" id="tabFriends">친구</button>
-        <button class="profile-tab" data-tab="alerts" id="tabAlerts">알림<span id="alertBadge" style="display:none;margin-left:6px;border-radius:10px;padding:2px 6px;background:#111;color:#fff;font-size:11px;"></span></button>
+        <button class="profile-tab active" data-tab="list" id="tabList">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="8" y1="6" x2="21" y2="6" />
+            <line x1="8" y1="12" x2="21" y2="12" />
+            <line x1="8" y1="18" x2="21" y2="18" />
+            <line x1="3" y1="6" x2="3.01" y2="6" />
+            <line x1="3" y1="12" x2="3.01" y2="12" />
+            <line x1="3" y1="18" x2="3.01" y2="18" />
+          </svg>
+          타임라인
+        </button>
+        <button class="profile-tab" data-tab="friends" id="tabFriends">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
+          친구
+        </button>
+        <button class="profile-tab" data-tab="alerts" id="tabAlerts">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+          </svg>
+          알림<span id="alertBadge" style="display:none;margin-left:6px;border-radius:10px;padding:2px 6px;background:#111;color:#fff;font-size:11px;"></span>
+        </button>
       </div>
     </div>
 

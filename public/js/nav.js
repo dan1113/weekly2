@@ -10,16 +10,33 @@
   bar.className = "navbar";
   bar.innerHTML = `
     <a class="navbtn" data-key="search" href="${toSearch}" aria-label="검색">
+      <div>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8" />
+          <path d="m21 21-4.35-4.35" />
+        </svg>
+      </div>
       <strong>검색</strong>
-      <span>friends</span>
     </a>
     <a class="navbtn" data-key="calendar" href="${toCalendar}" aria-label="캘린더">
+      <div>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="18" rx="2" />
+          <line x1="16" y1="2" x2="16" y2="6" />
+          <line x1="8" y1="2" x2="8" y2="6" />
+          <line x1="3" y1="10" x2="21" y2="10" />
+        </svg>
+      </div>
       <strong>캘린더</strong>
-      <span>calendar</span>
     </a>
     <a class="navbtn" data-key="profile" href="${toProfile}" aria-label="내 프로필">
+      <div>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+          <circle cx="12" cy="7" r="4" />
+        </svg>
+      </div>
       <strong>내 프로필</strong>
-      <span>me</span>
     </a>
   `;
 
@@ -42,4 +59,3 @@
     });
   });
 })();
-
