@@ -1,9 +1,9 @@
-ï»¿import { API_BASE, AUTH_HEADERS, apiFetch, ensureCsrfToken } from "./config.js";
+import { API_BASE, AUTH_HEADERS, apiFetch, ensureCsrfToken } from "./config.js";
 
 // ===== Constants =====
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-const MAX_FILE_COUNT = 5; // ìµœëŒ€ 5ì¥
-const RESIZE_THRESHOLD = 2 * 1024 * 1024; // 2MB ì´ìƒì´ë©´ ë¦¬ì‚¬ì´ì¦ˆ
+const MAX_FILE_COUNT = 5; // ÃÖ´ë 5Àå
+const RESIZE_THRESHOLD = 2 * 1024 * 1024; // 2MB ÀÌ»óÀÌ¸é ¸®»çÀÌÁî
 
 // ===== Utilities =====
 const pad = (n) => String(n).padStart(2, "0");
@@ -36,15 +36,15 @@ function validateFiles(files) {
   const errors = [];
   
   if (files.length > MAX_FILE_COUNT) {
-    errors.push(`ìµœëŒ€ ${MAX_FILE_COUNT}ì¥ê¹Œì§€ ì—…ë¡œë“œ ê°€ëŠ¥í•©ë‹ˆë‹¤.`);
+    errors.push(`ÃÖ´ë ${MAX_FILE_COUNT}Àå±îÁö ¾÷·Îµå °¡´ÉÇÕ´Ï´Ù.`);
   }
   
   for (const file of files) {
     if (!file.type.startsWith('image/')) {
-      errors.push(`${file.name}ì€(ëŠ”) ì´ë¯¸ì§€ íŒŒì¼ì´ ì•„ë‹™ë‹ˆë‹¤.`);
+      errors.push(`${file.name}Àº(´Â) ÀÌ¹ÌÁö ÆÄÀÏÀÌ ¾Æ´Õ´Ï´Ù.`);
     }
     if (file.size > MAX_FILE_SIZE) {
-      errors.push(`${file.name}ì˜ í¬ê¸°ê°€ 5MBë¥¼ ì´ˆê³¼í•©ë‹ˆë‹¤.`);
+      errors.push(`${file.name}ÀÇ Å©±â°¡ 5MB¸¦ ÃÊ°úÇÕ´Ï´Ù.`);
     }
   }
   
@@ -102,16 +102,6 @@ async function prepareImageForUpload(file) {
   }
 }
 
-// ===== Base64 Encoding =====
-function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
 // ===== Server API =====
 async function fetchOverview(year, month) {
   try {
@@ -149,41 +139,23 @@ function invalidateOverview(dateStr) {
   overviewCache.delete(overviewKey(Number(yy), Number(mm)));
 }
 
-// ===== Upload Base64 Images =====
-async function uploadBase64Images(dateStr, files) {
+// ===== Upload Images (multipart/form-data) =====
+async function uploadImages(dateStr, files) {
   await ensureCsrfToken();
-  console.log("[uploadBase64] start", { dateStr, fileCount: files.length });
   const prepared = await Promise.all(files.map((f) => prepareImageForUpload(f)));
-  const base64Files = await Promise.all(
-    prepared.map(async (file, index) => {
-      const base64 = await fileToBase64(file);
-      return {
-        filename: file.name,
-        base64: base64,
-        mime: file.type,
-        order: index
-      };
-    })
-  );
+  const fd = new FormData();
+  fd.append("date", dateStr);
+  prepared.forEach((file) => fd.append("images", file));
 
-  const res = await fetch(`${API_BASE}/api/diary/upload-base64`, {
+  const res = await fetch(`${API_BASE}/api/diary/upload`, {
     method: "POST",
     credentials: "include",
-    headers: AUTH_HEADERS({ "Content-Type": "application/json" }),
-    body: JSON.stringify({
-      date: dateStr,
-      files: base64Files
-    })
+    headers: AUTH_HEADERS(), // CSRF Çì´õ´Â config.js¿¡¼­ ÀÚµ¿ Æ÷ÇÔ ½Ã »ç¿ë
+    body: fd
   });
-
-  console.log("[uploadBase64] response", res.status, res.statusText);
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    console.error("[uploadBase64] error payload", data);
-  }
-  if (!res.ok) throw new Error(data?.error || "ì´ë¯¸ì§€ ì—…ë¡œë“œì— ì‹¤íŒ¨í–ˆìŠµë‹ˆë‹¤.");
-  
-  return data;
+  if (!res.ok) throw new Error(data?.error || "ÀÌ¹ÌÁö ¾÷·Îµå¿¡ ½ÇÆĞÇß½À´Ï´Ù.");
+  return data; // { ok, entryId, items:[{image_url, thumbnail_url}] }
 }
 
 // ===== Calendar Render =====
@@ -201,8 +173,8 @@ async function render(direction) {
   if (!grid) return;
   const y = viewDate.getFullYear();
   const m = viewDate.getMonth() + 1;
-  if (monthLabel) monthLabel.textContent = `${y}ë…„ ${m}ì›”`;
-  if (titleEl) titleEl.textContent = `${m}ì›”`;
+  if (monthLabel) monthLabel.textContent = `${y}³â ${m}¿ù`;
+  if (titleEl) titleEl.textContent = `${m}¿ù`;
 
   const key = overviewKey(y, m);
   let overview = overviewCache.get(key);
@@ -270,7 +242,7 @@ async function render(direction) {
 
 function updateSelectedInfo() {
   if (!selectedInfo) return;
-  selectedInfo.textContent = selectedDate ? `ì„ íƒ: ${fmt(selectedDate)}` : "ì„ íƒ ë‚ ì§œ ì—†ìŒ";
+  selectedInfo.textContent = selectedDate ? `¼±ÅÃ: ${fmt(selectedDate)}` : "¼±ÅÃ ³¯Â¥ ¾øÀ½";
 }
 
 // ===== Quick Diary Sheet =====
@@ -336,7 +308,7 @@ if (qFiles) {
     qPreview.innerHTML = "";
     qSelectedFiles = [...(qFiles.files || [])];
     
-    // íŒŒì¼ ê²€ì¦
+    // ÆÄÀÏ °ËÁõ
     const errors = validateFiles(qSelectedFiles);
     if (errors.length > 0) {
       console.warn(errors.join("\\n"));
@@ -363,59 +335,59 @@ if (uploadTrigger) {
 }
 
 // ===== Save Diary =====
-// ===== Save Diary ===== ë¶€ë¶„ ìˆ˜ì •
+// ===== Save Diary ===== ºÎºĞ ¼öÁ¤
 if (qSave) {
   qSave.addEventListener("click", async () => {
     if (!qCurrentDateStr) return;
     const text = qNote ? qNote.value.trim() : "";
     
     if (!qSelectedFiles.length && !text) {
-      console.warn("ë‚´ìš©ì´ë‚˜ ì´ë¯¸ì§€ë¥¼ ì…ë ¥í•´ ì£¼ì„¸ìš”.");
+      console.warn("³»¿ëÀÌ³ª ÀÌ¹ÌÁö¸¦ ÀÔ·ÂÇØ ÁÖ¼¼¿ä.");
       return;
     }
 
     const originalLabel = qSave.textContent;
     qSave.disabled = true;
-    qSave.textContent = "ì €ì¥ ì¤‘...";
+    qSave.textContent = "ÀúÀå Áß...";
     
     try {
-      // â­ CSRF í† í° ë¨¼ì € í™•ë³´
-      console.log("ğŸ” Ensuring CSRF token...");
+      // ? CSRF ÅäÅ« ¸ÕÀú È®º¸
+      console.log("?? Ensuring CSRF token...");
       const token = await ensureCsrfToken();
-      console.log("âœ… CSRF token ready:", token ? "YES" : "NO");
+      console.log("? CSRF token ready:", token ? "YES" : "NO");
       
       if (!token) {
-        throw new Error("CSRF í† í°ì„ ê°€ì ¸ì˜¬ ìˆ˜ ì—†ìŠµë‹ˆë‹¤. í˜ì´ì§€ë¥¼ ìƒˆë¡œê³ ì¹¨í•´ì£¼ì„¸ìš”.");
+        throw new Error("CSRF ÅäÅ«À» °¡Á®¿Ã ¼ö ¾ø½À´Ï´Ù. ÆäÀÌÁö¸¦ »õ·Î°íÄ§ÇØÁÖ¼¼¿ä.");
       }
       
-      // 1) ì´ë¯¸ì§€ ì—…ë¡œë“œ (base64)
+      // 1) ÀÌ¹ÌÁö ¾÷·Îµå (base64)
       if (qSelectedFiles.length > 0 && !qPhotosLocked) {
-        console.log("ğŸ“¤ Uploading images...", { count: qSelectedFiles.length });
+        console.log("?? Uploading images...", { count: qSelectedFiles.length });
         try {
           await uploadBase64Images(qCurrentDateStr, qSelectedFiles);
-          console.log("âœ… Images uploaded");
+          console.log("? Images uploaded");
         } catch (imgErr) {
-          console.error("âŒ Image upload failed", imgErr);
+          console.error("? Image upload failed", imgErr);
           throw imgErr;
         }
       }
       
-      // 2) í…ìŠ¤íŠ¸ ì¼ê¸° ì €ì¥
+      // 2) ÅØ½ºÆ® ÀÏ±â ÀúÀå
       if (text) {
-        console.log("ğŸ“ Saving diary text...");
+        console.log("?? Saving diary text...");
         const res = await fetch(`${API_BASE}/api/diary`, {
           method: "POST",
           credentials: "include",
           headers: AUTH_HEADERS({ "Content-Type": "application/json" }),
           body: JSON.stringify({ date: qCurrentDateStr, text })
         });
-        console.log("ğŸ“ Diary response", res.status, res.statusText);
+        console.log("?? Diary response", res.status, res.statusText);
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          console.error("âŒ Diary save payload", data);
-          throw new Error(data?.error || "ì¼ê¸° ì €ì¥ì— ì‹¤íŒ¨í–ˆìŠµë‹ˆë‹¤.");
+          console.error("? Diary save payload", data);
+          throw new Error(data?.error || "ÀÏ±â ÀúÀå¿¡ ½ÇÆĞÇß½À´Ï´Ù.");
         }
-        console.log("âœ… Diary text saved");
+        console.log("? Diary text saved");
       }
       
       invalidateOverview(qCurrentDateStr);
@@ -425,10 +397,10 @@ if (qSave) {
         openViewer(qCurrentDateStr);
       }
       closeQuickDiary();
-      console.log("âœ… ì €ì¥ ì™„ë£Œ");
+      console.log("? ÀúÀå ¿Ï·á");
     } catch (e) {
-      console.error("âŒ Save error:", e);
-      alert(`ì €ì¥ ì¤‘ ì˜¤ë¥˜ ë°œìƒ: ${e.message}`);
+      console.error("? Save error:", e);
+      alert(`ÀúÀå Áß ¿À·ù ¹ß»ı: ${e.message}`);
     } finally {
       qSave.disabled = false;
       qSave.textContent = originalLabel;
@@ -458,7 +430,7 @@ async function openViewer(dateStr) {
   const cardEl = document.getElementById("v-card");
   let firstRatio = null;
 
-  // ì¦‰ì‹œ í‘œì‹œ + ì• ë‹ˆë©”ì´ì…˜ ì´ˆê¸°í™”
+  // Áï½Ã Ç¥½Ã + ¾Ö´Ï¸ŞÀÌ¼Ç ÃÊ±âÈ­
   sheet.classList.add("open");
   if (cardEl) {
     cardEl.style.transform = "";
@@ -470,7 +442,7 @@ async function openViewer(dateStr) {
   if (metaEl) metaEl.textContent = "";
   if (photosEl) photosEl.innerHTML = "";
   if (textEl) {
-    textEl.textContent = "ì‘ì„±ëœ ë‚´ìš©ì´ ì—†ì–´ìš”.";
+    textEl.textContent = "ÀÛ¼ºµÈ ³»¿ëÀÌ ¾ø¾î¿ä.";
     textEl.classList.add("empty");
   }
   if (schedEl) schedEl.innerHTML = "";
@@ -503,20 +475,20 @@ async function openViewer(dateStr) {
 
   if (metaEl) {
     const meta = [];
-    if (photos.length) meta.push(`${photos.length}ì¥ ì‚¬ì§„`);
-    if (schedItems.length) meta.push(`${schedItems.length}ê±´ ì¼ì •`);
-    metaEl.textContent = meta.length ? meta.join(" | ") : "ê¸°ë¡ ì—†ìŒ";
+    if (photos.length) meta.push(`${photos.length}Àå »çÁø`);
+    if (schedItems.length) meta.push(`${schedItems.length}°Ç ÀÏÁ¤`);
+    metaEl.textContent = meta.length ? meta.join(" | ") : "±â·Ï ¾øÀ½";
   }
 
   if (photosEl) {
     photosEl.innerHTML = "";
     if (photos.length) {
-      // ì²« ë²ˆì§¸ ì—…ë¡œë“œëœ ì‚¬ì§„ì´ ë¨¼ì € ë‚˜ì˜¤ë„ë¡ ì •ë ¬
+      // Ã¹ ¹øÂ° ¾÷·ÎµåµÈ »çÁøÀÌ ¸ÕÀú ³ª¿Àµµ·Ï Á¤·Ä
       photos.sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
       photos.forEach((p) => {
         const img = document.createElement("img");
         img.src = p.base64_data || p.url || "";
-        img.alt = `ì‚¬ì§„`;
+        img.alt = `»çÁø`;
         photosEl.appendChild(img);
       });
       photosEl.scrollLeft = 0;
@@ -524,7 +496,7 @@ async function openViewer(dateStr) {
   }
 
   if (textEl) {
-    textEl.textContent = entry.text || "ì‘ì„±ëœ ë‚´ìš©ì´ ì—†ì–´ìš”.";
+    textEl.textContent = entry.text || "ÀÛ¼ºµÈ ³»¿ëÀÌ ¾ø¾î¿ä.";
     if (!entry.text) textEl.classList.add("empty");
     else textEl.classList.remove("empty");
   }
@@ -574,7 +546,7 @@ async function openViewer(dateStr) {
   
   if (deleteBtn) {
     deleteBtn.onclick = async () => {
-      if (!confirm("ì´ ë‚ ì§œì˜ ì¼ê¸°ë¥¼ ì‚­ì œí•˜ì‹œê² ìŠµë‹ˆê¹Œ?")) return;
+      if (!confirm("ÀÌ ³¯Â¥ÀÇ ÀÏ±â¸¦ »èÁ¦ÇÏ½Ã°Ú½À´Ï±î?")) return;
       
       try {
         const res = await fetch(`${API_BASE}/api/diary/day/${dateStr}`, {
@@ -583,15 +555,15 @@ async function openViewer(dateStr) {
           headers: AUTH_HEADERS()
         });
         
-        if (!res.ok) throw new Error("ì‚­ì œ ì‹¤íŒ¨");
+        if (!res.ok) throw new Error("»èÁ¦ ½ÇÆĞ");
         
         invalidateOverview(dateStr);
         await render();
         closeViewer();
-        console.log("ì‚­ì œë˜ì—ˆìŠµë‹ˆë‹¤.");
+        console.log("»èÁ¦µÇ¾ú½À´Ï´Ù.");
       } catch (e) {
         console.error(e);
-        console.error("ì‚­ì œ ì¤‘ ì˜¤ë¥˜ê°€ ë°œìƒí–ˆìŠµë‹ˆë‹¤.");
+        console.error("»èÁ¦ Áß ¿À·ù°¡ ¹ß»ıÇß½À´Ï´Ù.");
       }
     };
   }
@@ -603,7 +575,7 @@ async function openViewer(dateStr) {
       if (!viewSheetDateStr) return;
       const title = schedTitle ? schedTitle.value.trim() : "";
       if (!title) {
-        console.warn("ì¼ì • ì œëª©ì„ ì…ë ¥í•´ ì£¼ì„¸ìš”.");
+        console.warn("ÀÏÁ¤ Á¦¸ñÀ» ÀÔ·ÂÇØ ÁÖ¼¼¿ä.");
         return;
       }
       const timeVal = schedTime && schedTime.value ? schedTime.value : "00:00";
@@ -616,7 +588,7 @@ async function openViewer(dateStr) {
           body: JSON.stringify({ title, start_at: startAt }),
         }).then(async (res) => {
           const data = await res.json().catch(() => ({}));
-          if (!res.ok) throw new Error(data?.error || "ì¼ì • ì €ì¥ ì‹¤íŒ¨");
+          if (!res.ok) throw new Error(data?.error || "ÀÏÁ¤ ÀúÀå ½ÇÆĞ");
           invalidateOverview(viewSheetDateStr);
           const refreshed = await fetchSchedulesDay(viewSheetDateStr);
           if (refreshed?.items && schedEl) {
@@ -712,13 +684,13 @@ function handleSwipeGesture() {
   const diffX = touchEndX - touchStartX;
   const diffY = touchEndY - touchStartY;
   
-  // ìˆ˜í‰ ìŠ¤ì™€ì´í”„ê°€ ìˆ˜ì§ ìŠ¤ì™€ì´í”„ë³´ë‹¤ í¬ê³ , ìµœì†Œ ê±°ë¦¬(50px) ì´ìƒì¼ ë•Œë§Œ ì²˜ë¦¬
+  // ¼öÆò ½º¿ÍÀÌÇÁ°¡ ¼öÁ÷ ½º¿ÍÀÌÇÁº¸´Ù Å©°í, ÃÖ¼Ò °Å¸®(50px) ÀÌ»óÀÏ ¶§¸¸ Ã³¸®
   if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 50) {
     if (diffX > 0) {
-      // ì˜¤ë¥¸ìª½ ìŠ¤ì™€ì´í”„ â†’ ì´ì „ ë‹¬
+      // ¿À¸¥ÂÊ ½º¿ÍÀÌÇÁ ¡æ ÀÌÀü ´Ş
       if (prevBtn) prevBtn.click();
     } else {
-      // ì™¼ìª½ ìŠ¤ì™€ì´í”„ â†’ ë‹¤ìŒ ë‹¬
+      // ¿ŞÂÊ ½º¿ÍÀÌÇÁ ¡æ ´ÙÀ½ ´Ş
       if (nextBtn) nextBtn.click();
     }
   }
@@ -774,4 +746,5 @@ if (todayBtn) {
   await render();
   bindViewSheetDrag();
 })();
+
 

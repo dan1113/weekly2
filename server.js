@@ -12,6 +12,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import multer from "multer";
+import sharp from "sharp";
 import crypto from "crypto";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -167,7 +168,24 @@ await ensureDiaryPhotosColumns();
 
 /* -------------------- Upload (multer) -------------------- */
 const uploadDir = path.join(__dirname, "public", "uploads");
+const thumbDirRoot = path.join(uploadDir, "thumbs");
 await fs.promises.mkdir(uploadDir, { recursive: true });
+await fs.promises.mkdir(thumbDirRoot, { recursive: true });
+
+// Static for uploads (cache thumbnails aggressively)
+app.use(
+  "/uploads",
+  express.static(uploadDir, {
+    setHeaders: (res, filePath) => {
+      // cache thumbnails longer
+      if (filePath.includes(`${path.sep}thumbs${path.sep}`)) {
+        res.setHeader("Cache-Control", "public, max-age=2592000, immutable");
+      } else {
+        res.setHeader("Cache-Control", "public, max-age=604800");
+      }
+    },
+  })
+);
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, uploadDir),
@@ -193,6 +211,39 @@ const uploadDiaryMany = multer({
   storage,
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: imageFilter,
+});
+
+// Diary file upload (disk by year-month)
+const ensureDir = async (dir) => fs.promises.mkdir(dir, { recursive: true });
+const diaryStorage = multer.diskStorage({
+  destination: async (req, _file, cb) => {
+    try {
+      const now = new Date();
+      const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      const dest = path.join(uploadDir, ym);
+      await ensureDir(dest);
+      await ensureDir(path.join(thumbDirRoot, ym));
+      cb(null, dest);
+    } catch (e) {
+      cb(e);
+    }
+  },
+  filename: (req, file, cb) => {
+    const now = new Date();
+    const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
+    const base = `user${req.user?.id || "anon"}_${dateStr}_${(req._uploadIdx = (req._uploadIdx || 0) + 1)}_${crypto.randomBytes(6).toString("hex")}`;
+    const ext = (path.extname(file.originalname || "").toLowerCase() || ".jpg").replace(/[^.\w]/g, "") || ".jpg";
+    cb(null, base + ext);
+  },
+});
+const diaryFileFilter = (_req, file, cb) => {
+  const ok = /^image\/(jpe?g|png|webp)$/i.test(file.mimetype);
+  cb(ok ? null : new Error("jpg/jpeg/png/webp 형식만 허용"));
+};
+const uploadDiaryFiles = multer({
+  storage: diaryStorage,
+  limits: { fileSize: 10 * 1024 * 1024, files: 10 },
+  fileFilter: diaryFileFilter,
 });
 
 /* -------------------- CSRF Debug Middleware -------------------- */
@@ -271,6 +322,12 @@ app.get("/api/csrf", (req, res) => {
 
 /* -------------------- Helpers -------------------- */
 const nowISO = () => new Date().toISOString();
+const thumbFromImageUrl = (imageUrl = "") => {
+  const clean = String(imageUrl || "").replace(/\\/g, "/");
+  const m = clean.match(/\/uploads\/([^/]+)\/([^/.]+)\.[\w]+$/);
+  if (!m) return null;
+  return `/uploads/thumbs/${m[1]}/${m[2]}.webp`;
+};
 
 async function createSession(userId, req, res) {
   const sid = "s_" + nanoid(24);
@@ -613,6 +670,83 @@ app.get("/api/friends/list", authRequired, async (req, res) => {
 });
 
 /* -------------------- Diary APIs -------------------- */
+// 파일 업로드 (신규, 권장) - multipart/form-data
+app.post("/api/diary/upload", csrfProtection, authRequired, (req, res) => {
+  uploadDiaryFiles.array("images", 10)(req, res, async (err) => {
+    if (err) return res.status(400).json({ error: err.message || "업로드 실패" });
+    const files = req.files || [];
+    const { date, text } = req.body || {};
+    if (!files.length) return res.status(400).json({ error: "업로드할 파일이 없습니다." });
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(String(date))) {
+      return res.status(400).json({ error: "잘못된 날짜 형식" });
+    }
+    try {
+      let entry = await db.get(
+        `SELECT id FROM diary_entries WHERE user_id = ? AND date = ?`,
+        [req.user.id, date]
+      );
+      const now = nowISO();
+      let entryId = entry?.id;
+      if (!entry) {
+        entryId = "de_" + nanoid(16);
+        await db.run(
+          `INSERT INTO diary_entries (id, user_id, date, text, thumbnail_url, created_at, updated_at)
+           VALUES (?, ?, ?, ?, NULL, ?, ?)`,
+          [entryId, req.user.id, date, String(text || ""), now, now]
+        );
+      } else {
+        await db.run(
+          `UPDATE diary_entries SET text = COALESCE(text, ''), updated_at = ? WHERE id = ?`,
+          [now, entryId]
+        );
+      }
+
+      const items = [];
+      const publicRoot = path.join(__dirname, "public");
+
+      for (let i = 0; i < files.length; i++) {
+        const f = files[i];
+        const rel = "/" + path.relative(publicRoot, f.path).replace(/\\/g, "/");
+        const ymMatch = rel.match(/\/uploads\/([^/]+)\//);
+        const ym = ymMatch ? ymMatch[1] : "unknown";
+        const base = path.parse(f.filename).name;
+        const thumbDir = path.join(thumbDirRoot, ym);
+        await ensureDir(thumbDir);
+        const thumbAbs = path.join(thumbDir, `${base}.webp`);
+        try {
+          await sharp(f.path).resize({ width: 480, withoutEnlargement: true }).toFormat("webp").toFile(thumbAbs);
+        } catch (e) {
+          await fs.promises.unlink(f.path).catch(() => {});
+          return res.status(500).json({ error: "썸네일 생성 실패" });
+        }
+        const thumbRel = "/uploads/thumbs/" + ym + `/${base}.webp`;
+
+        const photoId = "dp_" + nanoid(12);
+        await db.run(
+          `INSERT INTO diary_photos (id, entry_id, user_id, order_index, image_url, image_data, created_at)
+           VALUES (?, ?, ?, ?, ?, NULL, ?)`,
+          [photoId, entryId, req.user.id, i, rel, now]
+        );
+        items.push({ image_url: rel, thumbnail_url: thumbRel });
+      }
+
+      const firstThumb = items[0]?.thumbnail_url || null;
+      if (firstThumb) {
+        await db.run(
+          `UPDATE diary_entries SET thumbnail_url = COALESCE(thumbnail_url, ?), updated_at = ? WHERE id = ?`,
+          [firstThumb, now, entryId]
+        );
+      }
+
+      res.json({ ok: true, entryId, items });
+    } catch (e2) {
+      console.error("upload error", e2);
+      res.status(500).json({ error: "업로드 실패" });
+    }
+  });
+});
+
+// Base64 업로드 (deprecated)
 app.post("/api/diary/upload-base64", csrfProtection, authRequired, async (req, res) => {
   try {
     const { date, files } = req.body || {};
@@ -755,7 +889,12 @@ app.get("/api/diary/:userId/photos", authRequired, async (req, res) => {
       LIMIT ?`,
     [targetId, limit]
   );
-  res.json({ items: rows });
+  const mapped = rows.map((r) => ({
+    ...r,
+    thumbnail_url: thumbFromImageUrl(r.image_url) || null,
+    base64_data: r.image_data || null,
+  }));
+  res.json({ items: mapped });
 });
 
 // Timeline summary (lightweight)
@@ -789,33 +928,39 @@ app.get("/api/diary/timeline", authRequired, async (req, res) => {
 
 app.get("/api/diary/day/:date", authRequired, async (req, res) => {
   const date = String(req.params.date || "");
+  const targetId = req.query.userId ? String(req.query.userId) : req.user.id;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return res.status(400).json({ error: "잘못된 날짜" });
   }
-  
+  // 권한 체크: 내 것이 아니면 친구만 접근
+  if (targetId !== req.user.id) {
+    const ok = await isFriend(req.user.id, targetId);
+    if (!ok) return res.status(403).json({ error: "친구에게만 공개된 내용입니다." });
+  }
+
   const entry = await db.get(
-    `SELECT id, text, thumbnail_url FROM diary_entries WHERE user_id = ? AND date = ?`,
-    [req.user.id, date]
+    `SELECT id, user_id, date, text, thumbnail_url FROM diary_entries WHERE user_id = ? AND date = ?`,
+    [targetId, date]
   );
-  
   if (!entry) return res.json({ entry: null, photos: [] });
-  
+
   const photos = await db.all(
-    `SELECT id, order_index, image_url, image_data 
-     FROM diary_photos 
-     WHERE entry_id = ? 
-     ORDER BY order_index ASC`,
+    `SELECT id, order_index, image_url, thumbnail_url, image_data
+       FROM diary_photos
+      WHERE entry_id = ?
+      ORDER BY order_index ASC`,
     [entry.id]
   );
-  
-  // base64_data 필드 추가 (클라이언트 호환성)
-  const photosWithBase64 = photos.map(p => ({
-    ...p,
-    base64_data: p.image_data || p.image_url,
-    order_index: p.order_index
+
+  const photosOut = photos.map((p) => ({
+    id: p.id,
+    order_index: p.order_index,
+    image_url: p.image_url || null,
+    thumbnail_url: p.thumbnail_url || thumbFromImageUrl(p.image_url) || null,
+    base64_data: p.image_url ? null : p.image_data || null, // URL 우선, 없을 때만 base64
   }));
-  
-  res.json({ entry, photos: photosWithBase64 });
+
+  res.json({ entry, photos: photosOut });
 });
 
 // 다이어리 삭제
