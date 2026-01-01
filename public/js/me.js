@@ -8,8 +8,7 @@ let friendList = [];
 const avatarSvgs = [
   `<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M32 8L38 10L40 16L38 54L32 56L26 54L24 16L26 10Z" stroke="#111" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><rect x="26" y="4" width="12" height="6" rx="1" stroke="#111" stroke-width="2" fill="none"/><line x1="26" y1="7" x2="38" y2="7" stroke="#111" stroke-width="1.5"/><path d="M28 54L32 60L36 54" fill="#111" stroke="#111" stroke-width="2" stroke-linejoin="round"/><line x1="24" y1="20" x2="24" y2="48" stroke="#111" stroke-width="2"/><line x1="40" y1="20" x2="40" y2="48" stroke="#111" stroke-width="2"/></svg>`,
   `<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="28" y="8" width="8" height="48" rx="1" stroke="#111" stroke-width="2.5"/><rect x="28" y="8" width="8" height="12" rx="1" stroke="#111" stroke-width="2.5" fill="none"/><path d="M36 8C38 8 40 10 40 12C40 14 40 16 40 18" stroke="#111" stroke-width="2" stroke-linecap="round"/><circle cx="40" cy="18" r="1.5" fill="#111"/><line x1="28" y1="24" x2="36" y2="24" stroke="#111" stroke-width="1.5"/><line x1="28" y1="28" x2="36" y2="28" stroke="#111" stroke-width="1.5"/><line x1="28" y1="32" x2="36" y2="32" stroke="#111" stroke-width="1.5"/><path d="M28 56L30 60L32 62L34 60L36 56" stroke="#111" stroke-width="2.5" stroke-linejoin="round"/><line x1="32" y1="60" x2="32" y2="62" stroke="#111" stroke-width="2"/></svg>`,
-  `<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="28" y="4" width="8" height="14" rx="1" stroke="#111" stroke-width="2.5" fill="none"/><path d="M36 6C38 6 40 7 40 9C40 11 40 14 40 16" stroke="#111" stroke-width="2" stroke-linecap="round"/><circle cx="40" cy="16" r="1.5" fill="#111"/><rect x="29" y="18" width="6" height="30" rx="1" stroke="#111" stroke-width="2.5"/><rect x="30" y="22" width="4" height="10" stroke="#111" stroke-width="1.5" fill="none"/><line x1="30" y1="26" x2="34" y2="26" stroke="#111" stroke-width="1"/><path d="M29 48L28 52L30 58L32 60L34 58L36 52L35 48Z" stroke="#111" stroke-width="2.5" stroke-linejoin="round"/><line x1="32" y1="52" x2="32" y2="60" stroke="#111" stroke-width="1.5"/><circle cx="32" cy="54" r="1" fill="#111"/></svg>`,
-  `<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="26" y="4" width="12" height="10" rx="2" stroke="#111" stroke-width="2.5" fill="none"/><line x1="28" y1="9" x2="36" y2="9" stroke="#111" stroke-width="1.5"/><rect x="27" y="14" width="10" height="36" rx="2" stroke="#111" stroke-width="2.5"/><line x1="27" y1="20" x2="37" y2="20" stroke="#111" stroke-width="2"/><line x1="27" y1="24" x2="37" y2="24" stroke="#111" stroke-width="2"/><circle cx="32" cy="32" r="4" stroke="#111" stroke-width="2"/><line x1="30" y1="32" x2="34" y2="32" stroke="#111" stroke-width="1.5"/><path d="M27 50L27 54L29 58L32 60L35 58L37 54L37 50Z" stroke="#111" stroke-width="2.5" stroke-linejoin="round"/><rect x="29" y="54" width="6" height="4" fill="#111"/></svg>`
+  `<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="28" y="4" width="8" height="14" rx="1" stroke="#111" stroke-width="2.5" fill="none"/><path d="M36 6C38 6 40 7 40 9C40 11 40 14 40 16" stroke="#111" stroke-width="2" stroke-linecap="round"/><circle cx="40" cy="16" r="1.5" fill="#111"/><rect x="29" y="18" width="6" height="30" rx="1" stroke="#111" stroke-width="2.5"/><rect x="30" y="22" width="4" height="10" stroke="#111" stroke-width="1.5" fill="none"/><line x1="30" y1="26" x2="34" y2="26" stroke="#111" stroke-width="1"/><path d="M29 48L28 52L30 58L32 60L34 58L36 52L35 48Z" stroke="#111" stroke-width="2.5" stroke-linejoin="round"/><line x1="32" y1="52" x2="32" y2="60" stroke="#111" stroke-width="1.5"/><circle cx="32" cy="54" r="1" fill="#111"/></svg>`
 ];
 
 function defaultAvatar(seed = "user") {
@@ -19,11 +18,32 @@ function defaultAvatar(seed = "user") {
   return `data:image/svg+xml;utf8,${encodeURIComponent(avatarSvgs[idx])}`;
 }
 
+function formatAgo(iso) {
+  if (!iso) return "";
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return "";
+  const diff = Date.now() - t;
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return "방금";
+  if (min < 60) return `${min}분 전`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}시간 전`;
+  const day = Math.floor(hr / 24);
+  return `${day}일 전`;
+}
+
 const els = {
   avatarImg: $("#avatarImg"),
   avatarBtn: $("#avatarBtn"),
   avatarInput: $("#avatarInput"),
   avatarDelBtn: $("#avatarDelBtn"),
+  editBtn: $("#editProfileBtn"),
+  editBackdrop: $("#edit-backdrop"),
+  editNick: $("#edit-nickname"),
+  editUser: $("#edit-username"),
+  editBio: $("#edit-bio"),
+  editCancel: $("#edit-cancel"),
+  editSave: $("#edit-save"),
   nickname: $("#nickname"),
   username: $("#username"),
   bio: $("#bio"),
@@ -271,18 +291,16 @@ function renderRequests(list) {
     list.forEach((r) => {
       const avatar = r.avatar_url || defaultAvatar(r.id || r.username || "user");
       const card = document.createElement("div");
-      card.className = "timeline-item";
+      card.className = "request-card";
       card.innerHTML = `
-        <div class="timeline-content" style="align-items:center; gap:12px;">
-          <img class="timeline-thumb" src="${avatar}" alt="${r.nickname || r.username}" />
-          <div class="timeline-text-preview">
-            <div class="timeline-text" style="font-weight:700;">${r.nickname || r.username || "사용자"}</div>
-            <div class="timeline-meta">@${r.username || ""}</div>
-            <div class="timeline-meta" style="margin-top:6px;">친구 요청을 보냈습니다.</div>
-            <div style="display:flex; gap:8px; margin-top:10px;">
-              <button class="btn accept-btn" data-id="${r.id}" style="flex:1; background:#111; color:#fff; border:1px solid rgba(0,0,0,.2);">수락</button>
-              <button class="btn ghost reject-btn" data-id="${r.id}" style="flex:1; background:#fff; color:#111; border:1px solid rgba(0,0,0,.2);">거절</button>
-            </div>
+        <img class="avatar-small" src="${avatar}" alt="${r.nickname || r.username}" />
+        <div style="flex:1; min-width:0;">
+          <div class="timeline-text" style="font-weight:700; margin-bottom:2px;">${r.nickname || r.username || "사용자"}</div>
+          <div class="timeline-meta">@${r.username || ""}</div>
+          <div class="request-meta">${formatAgo(r.created_at)}</div>
+          <div class="request-actions">
+            <button class="pill-btn primary accept-btn" data-id="${r.id}">수락</button>
+            <button class="pill-btn reject-btn" data-id="${r.id}">거절</button>
           </div>
         </div>
       `;
@@ -317,19 +335,38 @@ function renderFriends(list) {
   els.friendsView.innerHTML = "";
   list.forEach((f) => {
     const avatar = f.avatar_url || defaultAvatar(f.id || f.username || "user");
-    const a = document.createElement("a");
-    a.className = "timeline-item";
-    a.href = `/otherprofile.html?id=${encodeURIComponent(f.id)}&username=${encodeURIComponent(f.username)}`;
-    a.innerHTML = `
-      <div class="timeline-content" style="align-items:center; gap:12px;">
-        <img class="timeline-thumb" src="${avatar}" alt="${f.nickname || f.username}" />
-        <div class="timeline-text-preview">
-          <div class="timeline-text" style="font-weight:700;">${f.nickname || f.username || "사용자"}</div>
-          <div class="timeline-meta">@${f.username || ""}</div>
+    const row = document.createElement("div");
+    row.className = "friend-row";
+    row.innerHTML = `
+      <a class="timeline-content" style="align-items:center; gap:12px; text-decoration:none; color:inherit; flex:1; padding:0;" href="/otherprofile.html?id=${encodeURIComponent(f.id)}&username=${encodeURIComponent(f.username)}">
+        <img class="avatar-small" src="${avatar}" alt="${f.nickname || f.username}" />
+        <div class="friend-info">
+          <p class="friend-name">${f.nickname || f.username || "사용자"}</p>
+          <p class="friend-handle">@${f.username || ""}</p>
         </div>
-      </div>
+      </a>
+      <button class="icon-btn friend-del" data-id="${f.id}" aria-label="친구 삭제">
+        <svg class="trash-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(0,0,0,0.5)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 6h18" />
+          <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+          <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+          <line x1="10" y1="11" x2="10" y2="17" />
+          <line x1="14" y1="11" x2="14" y2="17" />
+        </svg>
+      </button>
     `;
-    els.friendsView.appendChild(a);
+    els.friendsView.appendChild(row);
+  });
+
+  els.friendsView.querySelectorAll(".friend-del").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const id = btn.dataset.id;
+      if (!id) return;
+      if (!confirm("이 친구를 삭제할까요?")) return;
+      deleteFriend(id);
+    });
   });
 }
 
@@ -351,6 +388,27 @@ async function respondFriend(fromUserId, action) {
     renderRequests(next);
   } catch (err) {
     alert(err.message || "처리에 실패했습니다.");
+  }
+}
+
+async function deleteFriend(friendId) {
+  try {
+    const token = await ensureCsrfToken();
+    const res = await apiFetch(`/api/friends/delete`, {
+      method: "POST",
+      credentials: "include",
+      headers: AUTH_HEADERS({
+        "Content-Type": "application/json",
+        "CSRF-Token": token,
+      }),
+      body: JSON.stringify({ friendId }),
+    });
+    const data = await safeJson(res);
+    if (!res.ok) throw new Error(data?.error || "삭제에 실패했습니다.");
+    const next = friendList.filter((f) => f.id !== friendId);
+    renderFriends(next);
+  } catch (err) {
+    alert(err.message || "삭제에 실패했습니다.");
   }
 }
 
@@ -450,6 +508,46 @@ async function deleteAvatar() {
   if (els.avatarDelBtn) els.avatarDelBtn.style.display = "none";
 }
 
+function bindEditModal() {
+  if (!els.editBtn || !els.editBackdrop) return;
+  const open = () => {
+    if (els.editNick) els.editNick.value = currentUser?.nickname || "";
+    if (els.editUser) els.editUser.value = currentUser?.username || "";
+    if (els.editBio) els.editBio.value = currentUser?.bio || "";
+    els.editBackdrop.classList.add("open");
+  };
+  const close = () => els.editBackdrop.classList.remove("open");
+  els.editBtn.addEventListener("click", open);
+  els.editCancel?.addEventListener("click", close);
+  els.editBackdrop.addEventListener("click", (e) => {
+    if (e.target === els.editBackdrop) close();
+  });
+  els.editSave?.addEventListener("click", async () => {
+    const nickname = (els.editNick?.value || "").trim();
+    const bio = (els.editBio?.value || "").trim();
+    if (!nickname) return alert("닉네임을 입력해주세요.");
+    try {
+      const token = await ensureCsrfToken();
+      const res = await apiFetch(`/api/users/me`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: AUTH_HEADERS({
+          "Content-Type": "application/json",
+          "CSRF-Token": token,
+        }),
+        body: JSON.stringify({ nickname, bio }),
+      });
+      const data = await safeJson(res);
+      if (!res.ok) throw new Error(data?.error || "저장에 실패했습니다.");
+      currentUser = { ...(currentUser || {}), nickname: data.nickname || nickname, bio: data.bio ?? bio };
+      renderProfile(currentUser);
+      close();
+    } catch (err) {
+      alert(err.message || "저장에 실패했습니다.");
+    }
+  });
+}
+
 async function loadDiaries(userId) {
   diaryMap = new Map();
   let timelineItems = [];
@@ -493,6 +591,7 @@ async function loadDiaries(userId) {
     bindViewer();
     bindAvatarUpload();
     bindAvatarDelete();
+    bindEditModal();
     await loadDiaries(session.userId);
     const reqs = await fetchPendingRequests();
     renderRequests(reqs);
